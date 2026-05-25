@@ -8,9 +8,11 @@ use Zapol\Booking\Http\Controllers\WidgetController;
 
 $prefix = config('booking.route_prefix', 'booking');
 
+// All booking routes are stateless (JSON or static JS/HTML), so they don't
+// need session middleware. We register them without the 'web' middleware
+// group to avoid forcing a session/DB on hosts that don't otherwise need one.
 Route::group([
     'prefix' => $prefix,
-    'middleware' => ['web'],
 ], function () {
     Route::get('widget.js', [WidgetController::class, 'script'])->name('booking.widget.script');
     Route::get('embed', [WidgetController::class, 'embed'])->name('booking.widget.embed');
@@ -19,7 +21,6 @@ Route::group([
 
 Route::group([
     'prefix' => $prefix . '/api',
-    'middleware' => ['api'],
 ], function () {
     Route::get('event-types/{slug}', [EventTypeController::class, 'show'])->name('booking.api.event-type');
     Route::get('event-types/{slug}/slots', [SlotsController::class, 'index'])->name('booking.api.slots');
