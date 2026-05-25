@@ -164,9 +164,11 @@ class GoogleCalendarService
 
     public function client(): GoogleClient
     {
+        $creds = $this->resolveClientCredentials();
+
         $client = new GoogleClient();
-        $client->setClientId($this->config['client_id'] ?? '');
-        $client->setClientSecret($this->config['client_secret'] ?? '');
+        $client->setClientId($creds['client_id'] ?? '');
+        $client->setClientSecret($creds['client_secret'] ?? '');
         $client->setRedirectUri($this->config['redirect_uri'] ?? 'urn:ietf:wg:oauth:2.0:oob');
         $client->setAccessType('offline');
         $client->setPrompt('consent');
@@ -183,16 +185,46 @@ class GoogleCalendarService
             return $this->service;
         }
 
-        $clientId = $this->config['client_id'] ?? null;
-        $clientSecret = $this->config['client_secret'] ?? null;
+        $creds = $this->resolveClientCredentials();
         $refresh = $this->config['refresh_token'] ?? null;
-        if (!$clientId || !$clientSecret || !$refresh) {
-            throw new RuntimeException('Booking package: Google credentials are not configured. Run `php artisan booking:google-auth` and set the BOOKING_GOOGLE_* env vars.');
+        if (empty($creds['client_id']) || empty($creds['client_secret']) || !$refresh) {
+            throw new RuntimeException('Booking package: Google credentials are not configured. Run `php artisan booking:google-auth` and complete the OAuth flow.');
         }
 
         $client = $this->client();
         $client->refreshToken($refresh);
 
         return $this->service = new CalendarService($client);
+    }
+
+    /**
+     * Resolve the OAuth client_id + client_secret. The credentials_file path
+     * (a Google Cloud Console "Web application" JSON download) wins if it
+     * exists and is readable. Otherwise we fall back to the explicit env
+     * vars. This lets operators drop the JSON file into the project without
+     * copying the values into .env.
+     *
+     * @return array{client_id:?string,client_secret:?string}
+     */
+    private function resolveClientCredentials(): array
+    {
+        $path = $this->config['credentials_file'] ?? null;
+        if ($path && is_file($path) && is_readable($path)) {
+            $raw = file_get_contents($path);
+            $decoded = $raw ? json_decode($raw, true) : null;
+            if (is_array($decoded)) {
+                $section = $decoded['web'] ?? $decoded['installed'] ?? $decoded;
+                $clientId = $section['client_id'] ?? null;
+                $clientSecret = $section['client_secret'] ?? null;
+                if ($clientId && $clientSecret) {
+                    return ['client_id' => $clientId, 'client_secret' => $clientSecret];
+                }
+            }
+        }
+
+        return [
+            'client_id'     => $this->config['client_id'] ?? null,
+            'client_secret' => $this->config['client_secret'] ?? null,
+        ];
     }
 }

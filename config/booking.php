@@ -15,14 +15,21 @@ return [
     */
 
     'google' => [
-        'client_id'      => env('BOOKING_GOOGLE_CLIENT_ID'),
-        'client_secret'  => env('BOOKING_GOOGLE_CLIENT_SECRET'),
+        // OAuth client credentials. Two ways to provide them:
+        //   1. Drop the JSON file downloaded from Google Cloud Console into the
+        //      project and point credentials_file at it (BOOKING_GOOGLE_CREDENTIALS_FILE).
+        //      That wins if present.
+        //   2. Set BOOKING_GOOGLE_CLIENT_ID / BOOKING_GOOGLE_CLIENT_SECRET in .env.
+        'credentials_file' => env('BOOKING_GOOGLE_CREDENTIALS_FILE'),
+        'client_id'        => env('BOOKING_GOOGLE_CLIENT_ID'),
+        'client_secret'    => env('BOOKING_GOOGLE_CLIENT_SECRET'),
+
         'refresh_token'  => env('BOOKING_GOOGLE_REFRESH_TOKEN'),
         'calendar_id'    => env('BOOKING_GOOGLE_CALENDAR_ID', 'primary'),
         'busy_calendars' => array_filter([
             env('BOOKING_GOOGLE_CALENDAR_ID', 'primary'),
         ]),
-        'redirect_uri'   => env('BOOKING_GOOGLE_REDIRECT_URI', 'urn:ietf:wg:oauth:2.0:oob'),
+        'redirect_uri'   => env('BOOKING_GOOGLE_REDIRECT_URI'),
     ],
 
     'organizer' => [
