@@ -38,15 +38,34 @@ BOOKING_MAIL_FROM=noreply@example.com
 BOOKING_MAIL_FROM_NAME="AgentsHub"
 ```
 
-### One-time Google auth
+### One-time Google auth (web UI)
 
-Create OAuth credentials at <https://console.cloud.google.com/apis/credentials> with redirect URI `urn:ietf:wg:oauth:2.0:oob` (Desktop app type works). Then:
+1. Run the artisan command to get a short-lived signed link to the connection page:
 
-```bash
-php artisan booking:google-auth
-```
+   ```bash
+   php artisan booking:google-auth
+   ```
 
-It prints an auth URL, you sign in with the Google account this install should book on behalf of, paste the code back, and it gives you the `BOOKING_GOOGLE_REFRESH_TOKEN` to drop into `.env`. Each install can use a **different Google account** — just run the command separately per project.
+   It prints two things:
+   - a signed URL to `/booking/google/connect` valid for 60 minutes (the operator-only setup page)
+   - the **redirect URI** Google needs (`https://your-site.tld/booking/google/callback`)
+
+2. Open <https://console.cloud.google.com/apis/credentials>, create an OAuth 2.0 Client ID of type **Web application**, and paste that callback URL into the "Authorised redirect URIs" field. Enable the [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com) on the same project.
+
+3. Put the resulting client ID + secret in `.env`:
+   ```env
+   BOOKING_GOOGLE_CLIENT_ID=...
+   BOOKING_GOOGLE_CLIENT_SECRET=...
+   ```
+   Run `php artisan config:clear`.
+
+4. Open the signed URL from step 1 and click **Connect Google Account**. Sign in with the Google account that should organise these meetings. Google redirects back to `/booking/google/callback`, which displays the refresh token to paste into `.env`:
+   ```env
+   BOOKING_GOOGLE_REFRESH_TOKEN=...
+   ```
+   Run `php artisan config:clear` once more.
+
+Each install can use a **different Google account** — run the flow separately per project.
 
 ## Configure event types
 
