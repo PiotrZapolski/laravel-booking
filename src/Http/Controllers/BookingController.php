@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\URL;
 use InvalidArgumentException;
 use Throwable;
+use Zapol\Booking\Events\BookingCreated;
 use Zapol\Booking\Mail\BookingCancelled;
 use Zapol\Booking\Mail\BookingConfirmation;
 use Zapol\Booking\Mail\BookingConfirmationOrganizer;
@@ -112,6 +113,13 @@ class BookingController extends Controller
         $mailer->send(new BookingConfirmation($payload, $type), $attendeeEmail);
         if (config('booking.mail.notify_organizer', true) && config('booking.organizer.email')) {
             $mailer->send(new BookingConfirmationOrganizer($payload, $type), config('booking.organizer.email'));
+        }
+
+        try {
+            event(new BookingCreated($payload, $type));
+        } catch (Throwable $e) {
+            // Listener errors must not break the booking itself.
+            report($e);
         }
 
         return response()->json($payload, 201);
