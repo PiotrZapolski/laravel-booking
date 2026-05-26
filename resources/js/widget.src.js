@@ -295,14 +295,12 @@
 
         var rows = fields.map(function (f) {
             var val = t.state.formValues[f.name] || '';
-            var locked = t.opts.prefill[f.name] !== undefined && t.opts.prefill[f.name] !== null && t.opts.prefill[f.name] !== '';
-            var hint = locked ? '<div class="bw-hint">(' + (t.opts.lang === 'pl' ? 'z poprzedniego kroku' : 'from previous step') + ')</div>' : '';
             var label = esc(f.label || f.name) + (f.required ? ' *' : '');
-            var attrs = 'name="' + esc(f.name) + '"' + (f.required ? ' required' : '') + (locked ? ' readonly' : '');
+            var attrs = 'name="' + esc(f.name) + '"' + (f.required ? ' required' : '');
             var input = f.type === 'textarea'
                 ? '<textarea ' + attrs + ' rows="3">' + esc(val) + '</textarea>'
                 : '<input type="' + esc(f.type || 'text') + '" value="' + esc(val) + '" ' + attrs + ' />';
-            return '<div class="bw-field"><label>' + label + '</label>' + input + hint + '</div>';
+            return '<div class="bw-field"><label>' + label + '</label>' + input + '</div>';
         }).join('');
 
         // Honeypot field
