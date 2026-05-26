@@ -30,24 +30,6 @@
         return;
     }
 
-    onReady(function () {
-        var mount = document.querySelector(mountSel);
-        if (!mount) {
-            mount = document.createElement('div');
-            mount.id = mountSel.replace('#', '');
-            (script && script.parentNode || document.body).insertBefore(mount, script ? script.nextSibling : null);
-        }
-        injectStyles(primary);
-        var app = new Widget(mount, {
-            api: apiBase,
-            slug: slug,
-            lang: lang,
-            prefill: prefill,
-            rescheduleToken: rescheduleToken,
-        });
-        app.boot();
-    });
-
     function deriveApiBase(src) {
         try {
             var u = new URL(src, window.location.href);
@@ -489,4 +471,26 @@
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
+
+    // Boot must run AFTER all the Widget.prototype.* assignments above have
+    // executed, so we issue it at the very bottom of the IIFE. With a `defer`
+    // script, the document is already parsed by the time we get here, so
+    // onReady() invokes its callback synchronously.
+    onReady(function () {
+        var mount = document.querySelector(mountSel);
+        if (!mount) {
+            mount = document.createElement('div');
+            mount.id = mountSel.replace('#', '');
+            (script && script.parentNode || document.body).insertBefore(mount, script ? script.nextSibling : null);
+        }
+        injectStyles(primary);
+        var app = new Widget(mount, {
+            api: apiBase,
+            slug: slug,
+            lang: lang,
+            prefill: prefill,
+            rescheduleToken: rescheduleToken,
+        });
+        app.boot();
+    });
 })();
