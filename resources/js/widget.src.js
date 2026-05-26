@@ -70,46 +70,91 @@
         if (document.getElementById('booking-widget-styles')) return;
         var s = document.createElement('style');
         s.id = 'booking-widget-styles';
+        // The widget inherits font/color from the host. All concrete values
+        // are CSS variables a host can override at .bw-root scope.
         s.textContent = (''
-            + '.bw-root{--bw-primary:' + primary + ';font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f303a;line-height:1.45;max-width:960px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;display:grid;grid-template-columns:280px 1fr;}'
-            + '@media(max-width:720px){.bw-root{grid-template-columns:1fr;}}'
-            + '.bw-side{background:var(--bw-primary);color:#fff;padding:24px;}'
-            + '.bw-side h2{font-size:18px;margin:0 0 8px;font-weight:700;line-height:1.25;}'
-            + '.bw-side p{font-size:13px;opacity:.92;margin:0 0 16px;}'
-            + '.bw-meta{font-size:13px;opacity:.95;display:flex;flex-direction:column;gap:6px;}'
-            + '.bw-main{padding:24px 28px;}'
-            + '.bw-tab-head{display:flex;gap:24px;border-bottom:1px solid #e5e7eb;margin-bottom:18px;}'
-            + '.bw-tab{padding:0 0 10px;font-size:14px;color:#6b7280;border-bottom:2px solid transparent;}'
-            + '.bw-tab.active{color:var(--bw-primary);border-bottom-color:var(--bw-primary);}'
-            + '.bw-h3{font-size:20px;margin:0 0 4px;font-weight:700;}'
-            + '.bw-sub{font-size:13px;color:#6b7280;margin:0 0 16px;}'
-            + '.bw-cal-head{display:flex;align-items:center;justify-content:space-between;margin:8px 0 12px;}'
-            + '.bw-cal-title{font-weight:600;font-size:15px;}'
-            + '.bw-nav{display:flex;gap:8px;}'
-            + '.bw-icon-btn{width:32px;height:32px;border-radius:50%;border:1px solid #e5e7eb;background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}'
-            + '.bw-icon-btn[disabled]{opacity:.4;cursor:not-allowed;}'
-            + '.bw-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}'
-            + '.bw-dow{font-size:11px;text-align:center;color:#6b7280;text-transform:uppercase;padding:6px 0;}'
-            + '.bw-day{aspect-ratio:1/1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;color:#9ca3af;cursor:default;}'
-            + '.bw-day.bw-bookable{color:#1f303a;background:#fff;border:1px solid #e5e7eb;cursor:pointer;}'
-            + '.bw-day.bw-bookable:hover{border-color:var(--bw-primary);}'
-            + '.bw-day.bw-selected{background:var(--bw-primary);color:#fff;border-color:var(--bw-primary);}'
-            + '.bw-slots{display:flex;flex-direction:column;gap:8px;margin-top:14px;}'
-            + '.bw-slot{padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;text-align:center;cursor:pointer;font-weight:500;background:#fff;}'
-            + '.bw-slot:hover{border-color:var(--bw-primary);color:var(--bw-primary);}'
-            + '.bw-form{display:flex;flex-direction:column;gap:14px;margin-top:8px;}'
-            + '.bw-field label{display:block;font-size:13px;font-weight:600;margin:0 0 4px;}'
-            + '.bw-field input,.bw-field textarea{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font:inherit;color:#1f303a;background:#fff;box-sizing:border-box;}'
-            + '.bw-field input:read-only{background:#f3f4f6;color:#4b5563;}'
-            + '.bw-field .bw-hint{font-size:11px;color:#9ca3af;margin:4px 0 0;}'
-            + '.bw-actions{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}'
-            + '.bw-btn{padding:10px 18px;background:var(--bw-primary);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;}'
+            + '.bw-root{'
+            + '--bw-accent:' + primary + ';'
+            + '--bw-muted:rgba(0,0,0,0.55);'
+            + '--bw-border:rgba(0,0,0,0.10);'
+            + '--bw-surface:transparent;'
+            + '--bw-radius:0;'
+            + 'font:inherit;color:inherit;background:var(--bw-surface);'
+            + 'border:0;border-radius:var(--bw-radius);'
+            + 'max-width:100%;width:100%;margin:0;line-height:1.5;'
+            + 'box-sizing:border-box;display:block;'
+            + '}'
+            + '.bw-root *{box-sizing:border-box;}'
+
+            // Header strip: title + inline meta (replaces colored sidebar)
+            + '.bw-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px 22px;'
+            + 'padding-bottom:18px;margin-bottom:24px;border-bottom:1px solid var(--bw-border);}'
+            + '.bw-head h2{font:inherit;font-weight:700;font-size:clamp(20px,2.2vw,28px);line-height:1.2;margin:0;flex:1 1 auto;}'
+            + '.bw-meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--bw-muted);font-size:14px;}'
+            + '.bw-meta span{white-space:nowrap;}'
+            + '.bw-desc{flex-basis:100%;color:var(--bw-muted);margin:0;font-size:15px;line-height:1.55;}'
+
+            // Tab strip (de-emphasised)
+            + '.bw-tabs{display:flex;gap:24px;margin:0 0 22px;font-size:13px;color:var(--bw-muted);}'
+            + '.bw-tab{padding:0 0 8px;border-bottom:2px solid transparent;}'
+            + '.bw-tab.active{color:inherit;border-bottom-color:var(--bw-accent);font-weight:500;}'
+
+            // Step heading
+            + '.bw-h3{font:inherit;font-weight:700;font-size:clamp(18px,1.8vw,22px);margin:0 0 6px;line-height:1.25;}'
+            + '.bw-sub{color:var(--bw-muted);margin:0 0 20px;font-size:15px;}'
+
+            // Calendar layout
+            + '.bw-stack{display:grid;gap:24px;}'
+            + '@media (min-width:900px){.bw-stack.bw-stack-2{grid-template-columns:minmax(360px,1.2fr) minmax(280px,1fr);align-items:start;}}'
+            + '.bw-cal-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px;}'
+            + '.bw-cal-title{font-weight:600;font-size:17px;}'
+            + '.bw-nav{display:flex;gap:10px;}'
+            + '.bw-icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--bw-border);background:transparent;color:inherit;font:inherit;font-size:18px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .15s,background .15s;}'
+            + '.bw-icon-btn:hover{border-color:var(--bw-accent);}'
+            + '.bw-icon-btn[disabled]{opacity:.35;cursor:not-allowed;}'
+            + '.bw-icon-btn[disabled]:hover{border-color:var(--bw-border);}'
+
+            + '.bw-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}'
+            + '.bw-dow{font-size:12px;text-align:center;color:var(--bw-muted);padding:4px 0 8px;font-weight:500;letter-spacing:.02em;}'
+            + '.bw-day{min-height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--bw-muted);cursor:default;font-weight:500;}'
+            + '.bw-day.bw-bookable{color:inherit;background:transparent;border:1px solid var(--bw-border);cursor:pointer;transition:border-color .12s,background .12s,color .12s;}'
+            + '.bw-day.bw-bookable:hover{border-color:var(--bw-accent);color:var(--bw-accent);}'
+            + '.bw-day.bw-selected{background:var(--bw-accent);color:#fff;border-color:var(--bw-accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--bw-accent) 22%,transparent);}'
+
+            // Slots (multi-column on wide screens)
+            + '.bw-slots-panel{}'
+            + '.bw-slots-heading{font-weight:600;font-size:15px;margin:0 0 14px;color:inherit;}'
+            + '.bw-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}'
+            + '.bw-slot{padding:14px 12px;border:1px solid var(--bw-border);border-radius:10px;text-align:center;cursor:pointer;font-weight:600;font-size:15px;color:inherit;background:transparent;font:inherit;transition:border-color .12s,color .12s,transform .12s;}'
+            + '.bw-slot:hover{border-color:var(--bw-accent);color:var(--bw-accent);transform:translateY(-1px);}'
+
+            // Form
+            + '.bw-form{display:grid;grid-template-columns:1fr;gap:18px;}'
+            + '@media (min-width:640px){.bw-form{grid-template-columns:1fr 1fr;}.bw-field.bw-field-full{grid-column:1 / -1;}}'
+            + '.bw-field label{display:block;font-size:13px;font-weight:600;margin:0 0 6px;letter-spacing:.01em;}'
+            + '.bw-field input,.bw-field textarea{width:100%;padding:13px 14px;border:1px solid var(--bw-border);border-radius:10px;font:inherit;font-size:16px;color:inherit;background:transparent;transition:border-color .12s,box-shadow .12s;}'
+            + '.bw-field input:focus,.bw-field textarea:focus{outline:0;border-color:var(--bw-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--bw-accent) 18%,transparent);}'
+            + '.bw-field textarea{min-height:96px;resize:vertical;}'
+
+            // Actions row + buttons
+            + '.bw-actions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:8px;grid-column:1 / -1;}'
+            + '.bw-btn{padding:14px 26px;background:var(--bw-accent);color:#fff;border:0;border-radius:10px;font-weight:600;cursor:pointer;font:inherit;font-size:16px;transition:filter .12s,transform .12s;}'
+            + '.bw-btn:hover{filter:brightness(1.05);}'
             + '.bw-btn[disabled]{opacity:.5;cursor:not-allowed;}'
-            + '.bw-link{background:none;border:0;color:var(--bw-primary);cursor:pointer;font:inherit;padding:0;}'
-            + '.bw-error{background:#fef2f2;color:#991b1b;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px;}'
-            + '.bw-success{padding:24px 0;}'
-            + '.bw-success h3{margin:0 0 8px;}'
-            + '.bw-success .bw-meta-row{padding:8px 0;border-bottom:1px solid #e5e7eb;font-size:14px;}'
+            + '.bw-link{background:transparent;border:0;color:var(--bw-accent);cursor:pointer;font:inherit;padding:0;font-size:14px;font-weight:500;text-decoration:underline;text-underline-offset:3px;}'
+            + '.bw-link:hover{text-decoration-thickness:2px;}'
+
+            // States
+            + '.bw-error{background:color-mix(in srgb,#dc2626 8%,transparent);color:#b91c1c;padding:12px 14px;border-radius:10px;margin-bottom:18px;font-size:14px;}'
+            + '.bw-success{padding:8px 0 24px;text-align:center;}'
+            + '.bw-success .bw-check{font-size:48px;color:var(--bw-accent);margin:0 0 12px;line-height:1;}'
+            + '.bw-success h3{font:inherit;font-weight:700;font-size:clamp(22px,2vw,28px);margin:0 0 8px;}'
+            + '.bw-success p{color:var(--bw-muted);margin:0 0 22px;}'
+            + '.bw-success-card{max-width:520px;margin:0 auto;text-align:left;border:1px solid var(--bw-border);border-radius:14px;padding:20px 22px;}'
+            + '.bw-meta-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--bw-border);font-size:15px;}'
+            + '.bw-meta-row:last-child{border-bottom:0;}'
+            + '.bw-meta-row strong{font-weight:600;}'
+            + '.bw-meta-row a{color:var(--bw-accent);word-break:break-all;}'
         );
         document.head.appendChild(s);
     }
@@ -193,27 +238,27 @@
     };
 
     Widget.prototype.render = function () {
-        var html = '<div class="bw-side">'
-            + (this.eventType ? this.renderSide() : '<div style="opacity:.7;">Loading…</div>')
-            + '</div>'
-            + '<div class="bw-main">'
+        var html = ''
+            + this.renderHead()
             + (this.state.error ? '<div class="bw-error">' + esc(this.state.error) + '</div>' : '')
-            + this.renderMain()
-            + '</div>';
+            + this.renderMain();
         this.root.innerHTML = html;
         this.bind();
     };
 
-    Widget.prototype.renderSide = function () {
+    Widget.prototype.renderHead = function () {
         var et = this.eventType;
-        return ''
+        if (!et) return '<div class="bw-head"><h2>…</h2></div>';
+        var meta = '<div class="bw-meta">'
+            + '<span>' + et.duration + ' min</span>'
+            + (et.location === 'google_meet' ? '<span>· Google Meet</span>' : '')
+            + (et.timezone ? '<span>· ' + esc(et.timezone) + '</span>' : '')
+            + (et.organizer && et.organizer.name ? '<span>· ' + esc(et.organizer.name) + '</span>' : '')
+            + '</div>';
+        return '<div class="bw-head">'
             + '<h2>' + esc(et.title) + '</h2>'
-            + (et.description ? '<p>' + esc(et.description) + '</p>' : '')
-            + '<div class="bw-meta">'
-            + '<div>⏱ ' + et.duration + ' min</div>'
-            + (et.location === 'google_meet' ? '<div>📹 Google Meet</div>' : '')
-            + (et.timezone ? '<div>🌐 ' + esc(et.timezone) + '</div>' : '')
-            + (et.organizer && et.organizer.name ? '<div>👤 ' + esc(et.organizer.name) + '</div>' : '')
+            + meta
+            + (et.description ? '<p class="bw-desc">' + esc(et.description) + '</p>' : '')
             + '</div>';
     };
 
@@ -254,16 +299,17 @@
         var canPrev = !(month.getFullYear() === today.getFullYear() && month.getMonth() <= today.getMonth());
 
         return ''
-            + '<div class="bw-tab-head"><div class="bw-tab active">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div></div>'
+            + '<div class="bw-tabs"><div class="bw-tab active">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div><div class="bw-tab">2. ' + (t.opts.lang === 'pl' ? 'Podsumowanie' : 'Summary') + '</div></div>'
             + '<h3 class="bw-h3">' + (t.opts.lang === 'pl' ? 'Wybierz datę' : 'Pick a date') + '</h3>'
+            + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Najpierw wybierz dzień, potem godzinę.' : 'Pick a day, then a time.') + '</p>'
             + '<div class="bw-cal-head">'
             + '<div class="bw-cal-title">' + esc(title) + '</div>'
             + '<div class="bw-nav">'
-            + '<button class="bw-icon-btn" data-action="prev"' + (canPrev ? '' : ' disabled') + '>‹</button>'
-            + '<button class="bw-icon-btn" data-action="next">›</button>'
+            + '<button class="bw-icon-btn" data-action="prev" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button>'
+            + '<button class="bw-icon-btn" data-action="next" aria-label="Next month">›</button>'
             + '</div></div>'
             + '<div class="bw-grid">' + grid + '</div>'
-            + (t.state.loading ? '<p style="text-align:center;color:#6b7280;margin-top:14px;">…</p>' : '');
+            + (t.state.loading ? '<p style="text-align:center;color:var(--bw-muted);margin-top:18px;">…</p>' : '');
     };
 
     Widget.prototype.renderSlots = function () {
@@ -277,12 +323,13 @@
                 var hm = s.start.substring(11, 16);
                 return '<button class="bw-slot" data-slot="' + esc(s.start) + '">' + hm + '</button>';
             }).join('')
-            : '<p style="color:#6b7280;">' + (t.opts.lang === 'pl' ? 'Brak dostępnych godzin.' : 'No times available.') + '</p>';
+            : '<p style="color:var(--bw-muted);">' + (t.opts.lang === 'pl' ? 'Brak dostępnych godzin.' : 'No times available.') + '</p>';
 
         return ''
-            + '<div class="bw-tab-head"><div class="bw-tab active">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div></div>'
+            + '<div class="bw-tabs"><div class="bw-tab active">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div><div class="bw-tab">2. ' + (t.opts.lang === 'pl' ? 'Podsumowanie' : 'Summary') + '</div></div>'
             + '<button class="bw-link" data-action="back-to-calendar">‹ ' + (t.opts.lang === 'pl' ? 'Powrót do kalendarza' : 'Back to calendar') + '</button>'
             + '<h3 class="bw-h3" style="margin-top:14px;">' + esc(heading) + '</h3>'
+            + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Wybierz dostępną godzinę.' : 'Pick an available time.') + '</p>'
             + '<div class="bw-slots">' + rows + '</div>';
     };
 
@@ -298,23 +345,24 @@
             var label = esc(f.label || f.name) + (f.required ? ' *' : '');
             var attrs = 'name="' + esc(f.name) + '"' + (f.required ? ' required' : '');
             var input = f.type === 'textarea'
-                ? '<textarea ' + attrs + ' rows="3">' + esc(val) + '</textarea>'
+                ? '<textarea ' + attrs + ' rows="4">' + esc(val) + '</textarea>'
                 : '<input type="' + esc(f.type || 'text') + '" value="' + esc(val) + '" ' + attrs + ' />';
-            return '<div class="bw-field"><label>' + label + '</label>' + input + '</div>';
+            var fullWidth = f.type === 'textarea' || f.name === 'description';
+            var cls = 'bw-field' + (fullWidth ? ' bw-field-full' : '');
+            return '<div class="' + cls + '"><label>' + label + '</label>' + input + '</div>';
         }).join('');
 
         // Honeypot field
-        rows += '<div style="position:absolute;left:-9999px;" aria-hidden="true"><label>Company<input type="text" name="hp_company" tabindex="-1" autocomplete="off" /></label></div>';
+        rows += '<div class="bw-field bw-field-full" style="position:absolute;left:-9999px;" aria-hidden="true"><label>Company<input type="text" name="hp_company" tabindex="-1" autocomplete="off" /></label></div>';
 
         return ''
-            + '<div class="bw-tab-head"><div class="bw-tab">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div><div class="bw-tab active">2. ' + (t.opts.lang === 'pl' ? 'Podsumowanie' : 'Summary') + '</div></div>'
+            + '<div class="bw-tabs"><div class="bw-tab">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div><div class="bw-tab active">2. ' + (t.opts.lang === 'pl' ? 'Podsumowanie' : 'Summary') + '</div></div>'
             + '<button class="bw-link" data-action="back-to-slots">‹ ' + (t.opts.lang === 'pl' ? 'Zmień termin' : 'Change time') + '</button>'
             + '<h3 class="bw-h3" style="margin-top:14px;">' + (t.opts.lang === 'pl' ? 'Twoje dane' : 'Your details') + '</h3>'
             + '<p class="bw-sub">' + esc(date) + ' · ' + esc(hm) + '</p>'
             + '<form class="bw-form" data-action="submit">'
             + rows
             + '<div class="bw-actions">'
-            + '<span></span>'
             + '<button class="bw-btn" type="submit"' + (t.state.loading ? ' disabled' : '') + '>' + (t.opts.lang === 'pl' ? 'Potwierdź' : 'Confirm') + ' →</button>'
             + '</div></form>';
     };
@@ -326,17 +374,20 @@
         var fmt = start ? start.toLocaleString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
         return ''
             + '<div class="bw-success">'
-            + '<h3 class="bw-h3">' + (t.opts.lang === 'pl' ? 'Rezerwacja potwierdzona ✓' : 'Booking confirmed ✓') + '</h3>'
-            + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Otrzymasz e-mail z potwierdzeniem.' : 'A confirmation email is on its way.') + '</p>'
-            + '<div class="bw-meta-row"><strong>' + (t.opts.lang === 'pl' ? 'Termin' : 'When') + ':</strong> ' + esc(fmt) + '</div>'
-            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>Google Meet:</strong> <a href="' + esc(b.meet_link) + '">' + esc(b.meet_link) + '</a></div>' : '')
-            + (b && b.reschedule_url ? '<p style="margin-top:20px;"><a class="bw-link" href="' + esc(b.reschedule_url) + '">' + (t.opts.lang === 'pl' ? 'Zmień termin lub anuluj' : 'Reschedule or cancel') + '</a></p>' : '')
+            + '<div class="bw-check">✓</div>'
+            + '<h3>' + (t.opts.lang === 'pl' ? 'Rezerwacja potwierdzona' : 'Booking confirmed') + '</h3>'
+            + '<p>' + (t.opts.lang === 'pl' ? 'Otrzymasz e-mail z potwierdzeniem.' : 'A confirmation email is on its way.') + '</p>'
+            + '<div class="bw-success-card">'
+            + '<div class="bw-meta-row"><strong>' + (t.opts.lang === 'pl' ? 'Termin' : 'When') + '</strong><span>' + esc(fmt) + '</span></div>'
+            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>Google Meet</strong><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener">' + (t.opts.lang === 'pl' ? 'Otwórz' : 'Open') + ' →</a></div>' : '')
+            + '</div>'
+            + (b && b.reschedule_url ? '<p style="margin-top:24px;"><a class="bw-link" href="' + esc(b.reschedule_url) + '">' + (t.opts.lang === 'pl' ? 'Zmień termin lub anuluj' : 'Reschedule or cancel') + '</a></p>' : '')
             + '</div>';
     };
 
     Widget.prototype.renderCancelled = function () {
         var t = this;
-        return '<div class="bw-success"><h3 class="bw-h3">' + (t.opts.lang === 'pl' ? 'Spotkanie anulowane' : 'Meeting cancelled') + '</h3></div>';
+        return '<div class="bw-success"><div class="bw-check">✓</div><h3>' + (t.opts.lang === 'pl' ? 'Spotkanie anulowane' : 'Meeting cancelled') + '</h3></div>';
     };
 
     Widget.prototype.bind = function () {
