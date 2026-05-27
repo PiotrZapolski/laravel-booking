@@ -224,8 +224,11 @@
         }).then(function (data) {
             self.state.slots = data.slots || [];
             self.state.slotsByDay = {};
+            // Group slots by *viewer-local* day (not organiser day) so a slot
+            // at 22:00 in Warsaw appearing as 16:00 in New York lands on the
+            // correct day on the New-York-based visitor's calendar.
             self.state.slots.forEach(function (s) {
-                var d = s.start.substring(0, 10);
+                var d = ymdInTz(new Date(s.start), userTz());
                 (self.state.slotsByDay[d] = self.state.slotsByDay[d] || []).push(s);
             });
             self.state.loading = false;
@@ -298,10 +301,12 @@
 
         var canPrev = !(month.getFullYear() === today.getFullYear() && month.getMonth() <= today.getMonth());
 
+        var tzLine = (t.opts.lang === 'pl' ? 'Godziny w Twojej strefie czasowej: ' : 'Times shown in your timezone: ') + esc(userTz());
+
         return ''
             + '<div class="bw-tabs"><div class="bw-tab active">1. ' + (t.opts.lang === 'pl' ? 'Termin' : 'Time') + '</div><div class="bw-tab">2. ' + (t.opts.lang === 'pl' ? 'Podsumowanie' : 'Summary') + '</div></div>'
             + '<h3 class="bw-h3">' + (t.opts.lang === 'pl' ? 'Wybierz datę' : 'Pick a date') + '</h3>'
-            + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Najpierw wybierz dzień, potem godzinę.' : 'Pick a day, then a time.') + '</p>'
+            + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Najpierw wybierz dzień, potem godzinę.' : 'Pick a day, then a time.') + ' <span style="color:var(--bw-muted);font-size:13px;">· ' + tzLine + '</span></p>'
             + '<div class="bw-cal-head">'
             + '<div class="bw-cal-title">' + esc(title) + '</div>'
             + '<div class="bw-nav">'
@@ -315,12 +320,12 @@
     Widget.prototype.renderSlots = function () {
         var t = this;
         var slots = t.state.slotsByDay[t.state.selectedDate] || [];
-        var dt = new Date(t.state.selectedDate + 'T00:00:00');
+        var dt = new Date(t.state.selectedDate + 'T12:00:00');
         var heading = dt.toLocaleDateString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
         var rows = slots.length
             ? slots.map(function (s) {
-                var hm = s.start.substring(11, 16);
+                var hm = fmtTimeInTz(new Date(s.start), userTz(), t.opts.lang);
                 return '<button class="bw-slot" data-slot="' + esc(s.start) + '">' + hm + '</button>';
             }).join('')
             : '<p style="color:var(--bw-muted);">' + (t.opts.lang === 'pl' ? 'Brak dostępnych godzin.' : 'No times available.') + '</p>';
@@ -337,8 +342,9 @@
         var t = this;
         var fields = (t.eventType && t.eventType.form_fields) || [];
         var slot = t.state.selectedSlot;
-        var hm = slot ? slot.substring(11, 16) : '';
-        var date = slot ? slot.substring(0, 10) : '';
+        var slotDt = slot ? new Date(slot) : null;
+        var hm = slotDt ? fmtTimeInTz(slotDt, userTz(), t.opts.lang) : '';
+        var date = slotDt ? slotDt.toLocaleDateString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: userTz() }) : '';
 
         var rows = fields.map(function (f) {
             var val = t.state.formValues[f.name] || '';
@@ -371,7 +377,7 @@
         var t = this;
         var b = t.state.booking;
         var start = b ? new Date(b.start) : null;
-        var fmt = start ? start.toLocaleString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        var fmt = start ? start.toLocaleString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: userTz() }) : '';
         return ''
             + '<div class="bw-success">'
             + '<div class="bw-check">✓</div>'
@@ -514,6 +520,49 @@
     function ymd(d) {
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+    // Viewer's timezone resolved from the browser. Cached so we don't ask Intl
+    // for it on every render. Falls back to UTC if Intl isn't available.
+    var _userTz = null;
+    function userTz() {
+        if (_userTz) return _userTz;
+        try {
+            _userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        } catch (e) {
+            _userTz = 'UTC';
+        }
+        return _userTz;
+    }
+    // YYYY-MM-DD for the given Date, projected into the supplied IANA TZ.
+    // Used to bucket slots into days as the viewer sees them, not as the
+    // organiser's server sees them.
+    function ymdInTz(d, tz) {
+        try {
+            var parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+            }).formatToParts(d);
+            var y = '', m = '', day = '';
+            for (var i = 0; i < parts.length; i++) {
+                if (parts[i].type === 'year') y = parts[i].value;
+                else if (parts[i].type === 'month') m = parts[i].value;
+                else if (parts[i].type === 'day') day = parts[i].value;
+            }
+            return y + '-' + m + '-' + day;
+        } catch (e) {
+            return ymd(d);
+        }
+    }
+    // HH:MM in viewer's TZ for the slot button labels + the form summary.
+    // Uses the viewer's locale (pl-PL / en-US) so PL gets 24h format and EN
+    // gets whatever their browser conventionally renders.
+    function fmtTimeInTz(d, tz, lang) {
+        try {
+            return d.toLocaleTimeString(lang === 'pl' ? 'pl-PL' : 'en-US', {
+                hour: '2-digit', minute: '2-digit', timeZone: tz,
+            });
+        } catch (e) {
+            return d.toISOString().substring(11, 16);
+        }
     }
     function esc(v) {
         return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
