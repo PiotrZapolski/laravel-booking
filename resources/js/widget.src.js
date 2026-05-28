@@ -375,19 +375,40 @@
 
     Widget.prototype.renderSuccess = function () {
         var t = this;
+        var pl = t.opts.lang === 'pl';
         var b = t.state.booking;
         var start = b ? new Date(b.start) : null;
-        var fmt = start ? start.toLocaleString(t.opts.lang === 'pl' ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: userTz() }) : '';
+        var fmt = start ? start.toLocaleString(pl ? 'pl-PL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: userTz() }) : '';
+        var email = b && b.fields && b.fields.email ? b.fields.email : '';
+
+        var subtitle = pl
+            ? ('Wysłaliśmy potwierdzenie' + (email ? ' na <strong>' + esc(email) + '</strong>' : '') + '. Sprawdź też folder Spam.')
+            : ('We\'ve sent a confirmation' + (email ? ' to <strong>' + esc(email) + '</strong>' : '') + '. If you don\'t see it, check your spam folder.');
+
+        var calendarInvite = pl
+            ? 'Otrzymasz też zaproszenie z Google Calendar — zaakceptuj je, aby dodać spotkanie do swojego kalendarza.'
+            : 'You\'ll also receive a separate Google Calendar invite — accept it to add this meeting to your calendar.';
+
         return ''
             + '<div class="bw-success">'
             + '<div class="bw-check">✓</div>'
-            + '<h3>' + (t.opts.lang === 'pl' ? 'Rezerwacja potwierdzona' : 'Booking confirmed') + '</h3>'
-            + '<p>' + (t.opts.lang === 'pl' ? 'Otrzymasz e-mail z potwierdzeniem.' : 'A confirmation email is on its way.') + '</p>'
+            + '<h3>' + (pl ? 'Rezerwacja potwierdzona' : 'Booking confirmed') + '</h3>'
+            + '<p>' + subtitle + '</p>'
+
             + '<div class="bw-success-card">'
-            + '<div class="bw-meta-row"><strong>' + (t.opts.lang === 'pl' ? 'Termin' : 'When') + '</strong><span>' + esc(fmt) + '</span></div>'
-            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>Google Meet</strong><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener">' + (t.opts.lang === 'pl' ? 'Otwórz' : 'Open') + ' →</a></div>' : '')
+            + '<div class="bw-meta-row"><strong>' + (pl ? 'Termin' : 'When') + '</strong><span>' + esc(fmt) + '</span></div>'
+            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>Google Meet</strong><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" style="color:var(--bw-accent);">' + (pl ? 'Link do spotkania' : 'Meeting link') + ' →</a></div>' : '')
             + '</div>'
-            + (b && b.reschedule_url ? '<p style="margin-top:24px;"><a class="bw-link" href="' + esc(b.reschedule_url) + '">' + (t.opts.lang === 'pl' ? 'Zmień termin lub anuluj' : 'Reschedule or cancel') + '</a></p>' : '')
+
+            + (b && b.meet_link
+                ? '<p style="margin-top:18px;"><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" class="bw-btn" style="display:inline-block;text-decoration:none;">' + (pl ? 'Dołącz do spotkania' : 'Join Google Meet') + '</a></p>'
+                : '')
+
+            + '<p style="margin:18px auto 0;max-width:520px;color:var(--bw-muted);font-size:13px;line-height:1.55;">' + calendarInvite + '</p>'
+
+            + (b && b.reschedule_url
+                ? '<p style="margin-top:20px;"><a class="bw-link" href="' + esc(b.reschedule_url) + '">' + (pl ? 'Zmień termin lub anuluj' : 'Reschedule or cancel') + '</a></p>'
+                : '')
             + '</div>';
     };
 
@@ -465,6 +486,7 @@
                 fields: fields,
                 hp_company: honeypot,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                lang: t.opts.lang,
             }),
         }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; }); })
           .then(function (resp) {

@@ -32,6 +32,7 @@ class BookingController extends Controller
             'slot'       => ['required', 'string'],
             'fields'     => ['required', 'array'],
             'timezone'   => ['nullable', 'string'],
+            'lang'       => ['nullable', 'string', 'max:8'],
             // Honeypot: must be empty
             'hp_company' => ['nullable', 'string', 'max:0'],
         ]);
@@ -90,11 +91,15 @@ class BookingController extends Controller
             return response()->json(['error' => 'calendar_create_failed', 'message' => $e->getMessage()], 502);
         }
 
-        $token = $signer->sign([
+        $tokenBody = [
             'gid' => $created['id'],
             'et'  => $data['event_type'],
             'em'  => $attendeeEmail,
-        ], 86400 * (int) config('booking.token_ttl_days', 60));
+        ];
+        if (!empty($data['lang'])) {
+            $tokenBody['lang'] = $data['lang'];
+        }
+        $token = $signer->sign($tokenBody, 86400 * (int) config('booking.token_ttl_days', 60));
 
         $rescheduleUrl = URL::route('booking.reschedule', ['token' => $token]);
 
@@ -108,6 +113,7 @@ class BookingController extends Controller
             'html_link'      => $created['html_link'],
             'reschedule_url' => $rescheduleUrl,
             'fields'         => $data['fields'],
+            'lang'           => $data['lang'] ?? null,
         ];
 
         $mailer->send(new BookingConfirmation($payload, $type), $attendeeEmail);
@@ -178,6 +184,22 @@ class BookingController extends Controller
         $end = $start->addMinutes($duration);
 
         $calendarId = config('booking.google.calendar_id', 'primary');
+
+        // Pull the existing event first so we can carry over rich detail
+        // (Meet link, attendee display name) into the reschedule mail without
+        // a second round-trip after the patch.
+        $existingEvent = $calendar->getEvent($calendarId, $payload['gid']);
+        $meetLink = $existingEvent ? $existingEvent->getHangoutLink() : null;
+        $attendeeName = null;
+        if ($existingEvent) {
+            foreach ((array) $existingEvent->getAttendees() as $a) {
+                if (strcasecmp((string) $a->getEmail(), $payload['em']) === 0) {
+                    $attendeeName = $a->getDisplayName();
+                    break;
+                }
+            }
+        }
+
         try {
             $calendar->patchEvent($calendarId, $payload['gid'], $start, $end, $tz);
         } catch (Throwable $e) {
@@ -193,8 +215,14 @@ class BookingController extends Controller
             'event_type'     => $payload['et'],
             'start'          => $start->toIso8601String(),
             'end'            => $end->toIso8601String(),
+            'meet_link'      => $meetLink,
             'reschedule_url' => $rescheduleUrl,
             'attendee'       => $payload['em'],
+            'lang'           => $payload['lang'] ?? null,
+            'fields'         => array_filter([
+                'email' => $payload['em'],
+                'name'  => $attendeeName,
+            ]),
         ];
         $mailer->send(new BookingRescheduled($msg, $type), $payload['em']);
         if (config('booking.mail.notify_organizer', true) && config('booking.organizer.email')) {
@@ -216,15 +244,46 @@ class BookingController extends Controller
             return response()->json(['error' => 'invalid_token'], 401);
         }
 
+        $calendarId = config('booking.google.calendar_id', 'primary');
+
+        // Capture the event details BEFORE we delete it so the cancellation
+        // mail + CANCEL ICS can carry the original datetime.
+        $existing = $calendar->getEvent($calendarId, $payload['gid']);
+        $start = $end = null;
+        $attendeeName = null;
+        if ($existing) {
+            $s = $existing->getStart();
+            $e = $existing->getEnd();
+            $start = $s ? ($s->getDateTime() ?: $s->getDate()) : null;
+            $end = $e ? ($e->getDateTime() ?: $e->getDate()) : null;
+            foreach ((array) $existing->getAttendees() as $a) {
+                if (strcasecmp((string) $a->getEmail(), $payload['em']) === 0) {
+                    $attendeeName = $a->getDisplayName();
+                    break;
+                }
+            }
+        }
+
         try {
-            $calendar->deleteEvent(config('booking.google.calendar_id', 'primary'), $payload['gid']);
+            $calendar->deleteEvent($calendarId, $payload['gid']);
         } catch (Throwable $e) {
             report($e);
             return response()->json(['error' => 'calendar_delete_failed'], 502);
         }
 
         $type = EventTypeResolver::find($payload['et']);
-        $msg = ['event_type' => $payload['et'], 'attendee' => $payload['em']];
+        $msg = [
+            'event_id'   => $payload['gid'],
+            'event_type' => $payload['et'],
+            'attendee'   => $payload['em'],
+            'start'      => $start,
+            'end'        => $end,
+            'lang'       => $payload['lang'] ?? null,
+            'fields'     => array_filter([
+                'email' => $payload['em'],
+                'name'  => $attendeeName,
+            ]),
+        ];
         $mailer->send(new BookingCancelled($msg, $type ?? []), $payload['em']);
         if (config('booking.mail.notify_organizer', true) && config('booking.organizer.email')) {
             $mailer->send(new BookingCancelled($msg, $type ?? []), config('booking.organizer.email'));
