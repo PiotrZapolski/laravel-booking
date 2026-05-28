@@ -1,8 +1,3 @@
-@extends('booking::emails._layout', [
-    'title' => __('booking::booking.mail_cancelled_title', ['title' => $eventType['title'] ?? '']),
-])
-
-@section('content')
 <?php
     $tz = config('booking.organizer.timezone', 'UTC');
     $hasTime = !empty($payload['start']) && !empty($payload['end']);
@@ -34,4 +29,3 @@
 <p style="margin:18px 0 0;color:#475569;font-size:14px;">
     {{ __('booking::booking.mail_cancelled_attachment_hint') }}
 </p>
-@endsection

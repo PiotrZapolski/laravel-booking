@@ -1,8 +1,3 @@
-@extends('booking::emails._layout', [
-    'title' => __('booking::booking.mail_confirmation_title', ['title' => $eventType['title'] ?? '']),
-])
-
-@section('content')
 <?php
     $accent = config('booking.theme.primary', '#1f303a');
     $start  = \Carbon\Carbon::parse($payload['start']);
@@ -75,4 +70,3 @@
         <a href="{{ $payload['reschedule_url'] }}" style="color:{{ $accent }};">{{ __('booking::booking.mail_reschedule_link') }}</a>
     </p>
 @endif
-@endsection

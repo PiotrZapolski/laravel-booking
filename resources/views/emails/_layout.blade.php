@@ -34,7 +34,7 @@
                 </tr>
                 <tr>
                     <td style="padding:28px 28px 8px;">
-                        @yield('content')
+                        {!! $content ?? '' !!}
                     </td>
                 </tr>
                 <tr>

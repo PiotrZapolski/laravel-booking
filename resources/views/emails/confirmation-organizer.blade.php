@@ -1,8 +1,3 @@
-@extends('booking::emails._layout', [
-    'title' => __('booking::booking.mail_org_title', ['title' => $eventType['title'] ?? '']),
-])
-
-@section('content')
 <?php
     $accent = config('booking.theme.primary', '#1f303a');
     $start  = \Carbon\Carbon::parse($payload['start']);
@@ -49,4 +44,3 @@
         @endforeach
     </table>
 @endif
-@endsection

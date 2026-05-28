@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Zapol\Booking\Support\MailLocale;
+use Zapol\Booking\Support\MailRenderer;
 
 class BookingConfirmationOrganizer extends Mailable
 {
@@ -21,13 +22,14 @@ class BookingConfirmationOrganizer extends Mailable
         $fromName = config('booking.mail.from_name');
         $title = $this->eventType['title'] ?? __('booking::booking.title');
 
+        $vars = [
+            'payload'   => $this->payload,
+            'eventType' => $this->eventType,
+            'fieldRows' => MailLocale::renderFieldRows($this->payload, $this->eventType),
+            'title'     => __('booking::booking.mail_org_title', ['title' => $title]),
+        ];
         $m = $this->subject(__('booking::booking.subject_confirmation_organizer', ['title' => $title]))
-            ->view('booking::emails.confirmation-organizer')
-            ->with([
-                'payload'   => $this->payload,
-                'eventType' => $this->eventType,
-                'fieldRows' => MailLocale::renderFieldRows($this->payload, $this->eventType),
-            ]);
+            ->html(MailRenderer::render('confirmation-organizer', $vars));
 
         if ($from) {
             $m->from($from, $fromName ?: null);

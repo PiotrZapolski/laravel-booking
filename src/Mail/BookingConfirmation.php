@@ -7,6 +7,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\App;
 use Zapol\Booking\Support\MailLocale;
+use Zapol\Booking\Support\MailRenderer;
 
 class BookingConfirmation extends Mailable
 {
@@ -22,14 +23,15 @@ class BookingConfirmation extends Mailable
         $fromName = config('booking.mail.from_name');
         $title = $this->eventType['title'] ?? __('booking::booking.title');
 
+        $vars = [
+            'payload'    => $this->payload,
+            'eventType'  => $this->eventType,
+            'fieldRows'  => MailLocale::renderFieldRows($this->payload, $this->eventType),
+            'attendee'   => $this->payload['fields']['email'] ?? null,
+            'title'      => __('booking::booking.mail_confirmation_title', ['title' => $title]),
+        ];
         $m = $this->subject(__('booking::booking.subject_confirmation_attendee', ['title' => $title]))
-            ->view('booking::emails.confirmation')
-            ->with([
-                'payload'    => $this->payload,
-                'eventType'  => $this->eventType,
-                'fieldRows'  => MailLocale::renderFieldRows($this->payload, $this->eventType),
-                'attendee'   => $this->payload['fields']['email'] ?? null,
-            ]);
+            ->html(MailRenderer::render('confirmation', $vars));
 
         if ($from) {
             $m->from($from, $fromName ?: null);
