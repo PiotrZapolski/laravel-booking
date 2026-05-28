@@ -43,6 +43,13 @@ return [
         'from_name'        => env('BOOKING_MAIL_FROM_NAME', env('MAIL_FROM_NAME', 'Booking')),
         'reply_to'         => env('BOOKING_MAIL_REPLY_TO'),
         'notify_organizer' => true,
+
+        // Optional branding the lifecycle email layout reads. Set these per-host
+        // and every confirmation / reschedule / cancel email picks them up
+        // without forking the templates.
+        'logo_url'    => env('BOOKING_MAIL_LOGO_URL'),
+        'brand_url'   => env('BOOKING_MAIL_BRAND_URL', env('APP_URL')),
+        'footer_html' => env('BOOKING_MAIL_FOOTER_HTML'),
     ],
 
     'route_prefix'     => 'booking',

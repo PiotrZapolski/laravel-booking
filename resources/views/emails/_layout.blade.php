@@ -4,9 +4,9 @@
 <?php
     $accent = $accent ?? config('booking.theme.primary', '#1f303a');
     $brand = $brand ?? config('booking.mail.from_name', config('booking.organizer.name', 'Booking'));
-    $brandUrl = $brandUrl ?? config('app.url');
-    $logoUrl = $logoUrl ?? null;
-    $footerHtml = $footerHtml ?? '';
+    $brandUrl = $brandUrl ?? config('booking.mail.brand_url', config('app.url'));
+    $logoUrl = $logoUrl ?? config('booking.mail.logo_url');
+    $footerHtml = $footerHtml ?? config('booking.mail.footer_html', '');
 ?>
 <!doctype html>
 <html lang="{{ app()->getLocale() }}">
