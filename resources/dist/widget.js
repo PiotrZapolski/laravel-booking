@@ -144,7 +144,9 @@
             + '.bw-actions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:8px;grid-column:1 / -1;}'
             + '.bw-btn{padding:14px 26px;background:var(--bw-accent);color:#fff;border:0;border-radius:10px;font-weight:600;cursor:pointer;font:inherit;font-size:16px;transition:filter .12s,transform .12s;}'
             + '.bw-btn:hover{filter:brightness(1.05);}'
-            + '.bw-btn[disabled]{opacity:.5;cursor:not-allowed;}'
+            + '.bw-btn[disabled]{opacity:.7;cursor:progress;}'
+            + '.bw-spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:bw-spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}'
+            + '@keyframes bw-spin{to{transform:rotate(360deg);}}'
             + '.bw-link{background:transparent;border:0;color:var(--bw-accent);cursor:pointer;font:inherit;padding:0;font-size:14px;font-weight:500;text-decoration:underline;text-underline-offset:3px;}'
             + '.bw-link:hover{text-decoration-thickness:2px;}'
 
@@ -420,7 +422,11 @@
             + '<form class="bw-form" data-action="submit">'
             + rows
             + '<div class="bw-actions">'
-            + '<button class="bw-btn" type="submit"' + (t.state.loading ? ' disabled' : '') + '>' + (t.opts.lang === 'pl' ? 'Potwierdź' : 'Confirm') + ' →</button>'
+            + '<button class="bw-btn" type="submit"' + (t.state.loading ? ' disabled' : '') + '>'
+            + (t.state.loading
+                ? '<span class="bw-spinner" aria-hidden="true"></span>' + (t.opts.lang === 'pl' ? 'Rezerwuję…' : 'Booking…')
+                : (t.opts.lang === 'pl' ? 'Potwierdź' : 'Confirm') + ' →')
+            + '</button>'
             + '</div></form>';
     };
 
@@ -520,12 +526,18 @@
 
     Widget.prototype.submitBooking = function (fd) {
         var t = this;
+        // Guard against double-submit if the click handler fires twice while
+        // the spinner is up (e.g. impatient user retapping the button).
+        if (t.state.loading) return;
         var fields = {};
         var honeypot = '';
         fd.forEach(function (v, k) {
             if (k === 'hp_company') honeypot = v;
             else fields[k] = v;
         });
+        // Persist into formValues so re-render with the spinner doesn't blank
+        // the inputs behind the loading button.
+        t.state.formValues = Object.assign({}, t.state.formValues, fields);
         t.state.loading = true;
         t.state.error = null;
         t.render();
