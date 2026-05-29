@@ -178,6 +178,12 @@
             error: null,
             booking: null,
             formValues: {},
+            // Auto-advance is armed on boot. If the landing month has zero
+            // bookable days, boot() walks the calendar forward (one month at a
+            // time, up to max_advance_days) until it finds a month with slots.
+            // Any user-initiated month nav click disarms this so the visitor
+            // can revisit empty months without the widget yanking them back.
+            autoAdvanceArmed: true,
         };
     }
 
@@ -187,10 +193,51 @@
         this.render();
         this.fetchEventType().then(function () {
             return self.loadMonth(self.state.month);
+        }).then(function () {
+            if (self.state.autoAdvanceArmed) {
+                return self.findFirstNonEmptyMonth();
+            }
         }).catch(function (e) {
             self.state.error = (e && e.message) || 'Failed to load.';
             self.render();
         });
+    };
+
+    // Walk state.month forward one month at a time, calling loadMonth, until
+    // slotsByDay has at least one non-empty entry or we exceed the event
+    // type's max_advance_days cap. Keeps state.loading true between iterations
+    // so the visitor sees the spinner, not flashes of empty grids.
+    Widget.prototype.findFirstNonEmptyMonth = function () {
+        var self = this;
+        var maxAdvance = (self.eventType && self.eventType.max_advance_days) || 90;
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        function hasSlots() {
+            var byDay = self.state.slotsByDay || {};
+            for (var k in byDay) {
+                if (Object.prototype.hasOwnProperty.call(byDay, k) && byDay[k] && byDay[k].length) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function step() {
+            if (hasSlots()) {
+                return Promise.resolve();
+            }
+            var next = new Date(self.state.month.getFullYear(), self.state.month.getMonth() + 1, 1);
+            var advancedDays = Math.ceil((next - today) / 86400000);
+            if (advancedDays > maxAdvance) {
+                return Promise.resolve();
+            }
+            self.state.month = next;
+            self.state.loading = true;
+            return self.loadMonth(self.state.month).then(step);
+        }
+
+        return step();
     };
 
     Widget.prototype.fetchEventType = function () {
@@ -426,12 +473,14 @@
         var root = t.root;
         root.querySelectorAll('[data-action="prev"]').forEach(function (b) {
             b.addEventListener('click', function () {
+                t.state.autoAdvanceArmed = false;
                 t.state.month = new Date(t.state.month.getFullYear(), t.state.month.getMonth() - 1, 1);
                 t.loadMonth(t.state.month);
             });
         });
         root.querySelectorAll('[data-action="next"]').forEach(function (b) {
             b.addEventListener('click', function () {
+                t.state.autoAdvanceArmed = false;
                 t.state.month = new Date(t.state.month.getFullYear(), t.state.month.getMonth() + 1, 1);
                 t.loadMonth(t.state.month);
             });
