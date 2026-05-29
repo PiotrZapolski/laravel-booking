@@ -23,6 +23,10 @@
     var lang = (ds.lang || 'en').toLowerCase();
     var primary = ds.primary || '#47b2e4';
     var rescheduleToken = ds.rescheduleToken || null;
+    // Attribution strings the host page can inject so the `booking:confirmed`
+    // CustomEvent carries them through to whichever pixel / ads tag fires.
+    var firstChannel = ds.firstChannel || null;
+    var lastSource = ds.lastSource || null;
     var prefill = collectPrefill(ds);
 
     if (!slug) {
@@ -504,6 +508,25 @@
               t.state.booking = resp.data;
               t.state.view = 'success';
               t.render();
+
+              // Notify the host page that a booking just landed so it can
+              // fire its own analytics conversion (Google Ads, Meta Pixel,
+              // etc.). The widget intentionally does not own these — every
+              // host has its own tag IDs.
+              try {
+                  var ev = new CustomEvent('booking:confirmed', {
+                      bubbles: true,
+                      detail: {
+                          eventType:   t.opts.slug,
+                          payload:     resp.data,
+                          firstChannel: t.opts.firstChannel || null,
+                          lastSource:   t.opts.lastSource || null,
+                      },
+                  });
+                  window.dispatchEvent(ev);
+              } catch (err) {
+                  // CustomEvent unsupported (very old IE) — quietly skip.
+              }
           })
           .catch(function (e) {
               t.state.loading = false;
@@ -610,6 +633,8 @@
             lang: lang,
             prefill: prefill,
             rescheduleToken: rescheduleToken,
+            firstChannel: firstChannel,
+            lastSource: lastSource,
         });
         app.boot();
     });
