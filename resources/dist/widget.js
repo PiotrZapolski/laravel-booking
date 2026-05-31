@@ -328,6 +328,18 @@
         }
     };
 
+    // Cancel affordance — only meaningful in reschedule mode (the visitor
+    // arrived from the "Reschedule or cancel" email link with a token). Shown
+    // below the calendar / slots so a booker who wants out — not a new time —
+    // has a clear exit. Styled muted/danger to set it apart from reschedule.
+    Widget.prototype.renderCancelLink = function () {
+        if (!this.opts.rescheduleToken) return '';
+        var label = this.opts.lang === 'pl' ? 'Anuluj spotkanie' : 'Cancel meeting';
+        return '<div style="margin-top:28px;padding-top:18px;border-top:1px solid var(--bw-border);">'
+            + '<button class="bw-link" data-action="cancel" style="color:#b91c1c;">' + label + '</button>'
+            + '</div>';
+    };
+
     Widget.prototype.renderCalendar = function () {
         var t = this;
         var month = t.state.month;
@@ -367,7 +379,8 @@
             + '<button class="bw-icon-btn" data-action="next" aria-label="Next month">›</button>'
             + '</div></div>'
             + '<div class="bw-grid">' + grid + '</div>'
-            + (t.state.loading ? '<p style="text-align:center;color:var(--bw-muted);margin-top:18px;">…</p>' : '');
+            + (t.state.loading ? '<p style="text-align:center;color:var(--bw-muted);margin-top:18px;">…</p>' : '')
+            + t.renderCancelLink();
     };
 
     Widget.prototype.renderSlots = function () {
@@ -388,7 +401,8 @@
             + '<button class="bw-link" data-action="back-to-calendar">‹ ' + (t.opts.lang === 'pl' ? 'Powrót do kalendarza' : 'Back to calendar') + '</button>'
             + '<h3 class="bw-h3" style="margin-top:14px;">' + esc(heading) + '</h3>'
             + '<p class="bw-sub">' + (t.opts.lang === 'pl' ? 'Wybierz dostępną godzinę.' : 'Pick an available time.') + '</p>'
-            + '<div class="bw-slots">' + rows + '</div>';
+            + '<div class="bw-slots">' + rows + '</div>'
+            + t.renderCancelLink();
     };
 
     Widget.prototype.renderForm = function () {
@@ -515,6 +529,9 @@
                 }
             });
         });
+        root.querySelectorAll('[data-action="cancel"]').forEach(function (b) {
+            b.addEventListener('click', function () { t.submitCancel(); });
+        });
         var form = root.querySelector('form[data-action="submit"]');
         if (form) {
             form.addEventListener('submit', function (e) {
@@ -615,6 +632,39 @@
               }
               t.state.booking = resp.data;
               t.state.view = 'success';
+              t.render();
+          });
+    };
+
+    Widget.prototype.submitCancel = function () {
+        var t = this;
+        // Guard against double-submit while a request is already in flight.
+        if (t.state.loading) return;
+        var pl = t.opts.lang === 'pl';
+        var ask = pl ? 'Czy na pewno chcesz anulować to spotkanie?' : 'Are you sure you want to cancel this meeting?';
+        if (!window.confirm(ask)) return;
+        t.state.loading = true;
+        t.state.error = null;
+        t.render();
+        fetch(t.opts.api + '/bookings/' + encodeURIComponent(t.opts.rescheduleToken) + '/cancel', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({}),
+        }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (resp) {
+              t.state.loading = false;
+              if (!resp.ok) {
+                  t.state.error = (resp.data && resp.data.message) || (resp.data && resp.data.error) || (pl ? 'Nie udało się anulować.' : 'Cancellation failed.');
+                  t.render();
+                  return;
+              }
+              t.state.view = 'cancelled';
+              t.render();
+          })
+          .catch(function (e) {
+              t.state.loading = false;
+              t.state.error = e.message || (pl ? 'Błąd sieci.' : 'Network error.');
               t.render();
           });
     };
