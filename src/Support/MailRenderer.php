@@ -12,7 +12,7 @@ use RuntimeException;
  * Why: on October CMS hosts the `view()` factory routes package views
  * through Twig (October replaces it for CMS pages), which chokes on the
  * `<?php ?>` blocks in our email layouts. Rendering through `Blade::render()`
- * uses Laravel's BladeCompiler directly — always works regardless of which
+ * uses Laravel's BladeCompiler directly - always works regardless of which
  * templating engine the host CMS prefers.
  *
  * Two-pass to support a shared layout: the inner template renders into a

@@ -9,7 +9,7 @@
 </h1>
 
 <p style="margin:0 0 18px;font-size:15px;">
-    <strong>{{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} – {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}</strong>
+    <strong>{{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} - {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}</strong>
     <span style="color:#94a3b8;">({{ $tz }})</span>
 </p>
 
@@ -17,7 +17,7 @@
     <p style="margin:0 0 18px;">
         <a href="{{ $payload['meet_link'] }}"
            style="display:inline-block;background:{{ $accent }};color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;">
-            Google Meet →
+            {{ $payload['location_label'] ?? __('booking::booking.mail_btn_join') }} →
         </a>
     </p>
 @endif

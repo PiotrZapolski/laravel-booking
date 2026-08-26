@@ -35,7 +35,7 @@ class BookingRescheduled extends Mailable
             $m->from($from, $fromName ?: null);
         }
 
-        // Reschedule = same UID, METHOD:REQUEST, same SEQUENCE+1 — Apple/
+        // Reschedule = same UID, METHOD:REQUEST, same SEQUENCE+1 - Apple/
         // Google/Outlook treat this as an in-place update of the original
         // event in the attendee's calendar.
         $organizerEmail = config('booking.organizer.email') ?: ($from ?: 'noreply@example.com');

@@ -5,17 +5,19 @@ namespace Zapol\Booking\Services;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterval;
 use InvalidArgumentException;
-use Zapol\Booking\Services\Google\GoogleCalendarService;
+use Zapol\Booking\Contracts\CalendarProvider;
 
 /**
  * Computes available booking slots = (configured weekly windows) minus
- * (busy intervals on the organiser's Google calendar(s)), with notice,
+ * (busy intervals reported by the active calendar driver), with notice,
  * advance, buffer, and step constraints applied.
+ *
+ * Which calendars count as busy is the driver's business, not ours.
  */
 class AvailabilityCalculator
 {
     public function __construct(
-        private GoogleCalendarService $calendar,
+        private CalendarProvider $calendar,
         private array $config,
     ) {}
 
@@ -55,7 +57,6 @@ class AvailabilityCalculator
         }
 
         $busy = $this->calendar->freeBusy(
-            $this->config['google']['busy_calendars'] ?? [],
             $rangeFrom->subMinutes($buffer),
             $rangeTo->addMinutes($buffer + $duration),
         );

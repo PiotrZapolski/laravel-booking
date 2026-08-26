@@ -6,24 +6,29 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use InvalidArgumentException;
 use Throwable;
+use Zapol\Booking\Conference\ConferenceResolver;
+use Zapol\Booking\Contracts\CalendarProvider;
+use Zapol\Booking\Events\BookingCancelled as BookingCancelledEvent;
 use Zapol\Booking\Events\BookingCreated;
+use Zapol\Booking\Events\BookingRescheduled as BookingRescheduledEvent;
 use Zapol\Booking\Mail\BookingCancelled;
 use Zapol\Booking\Mail\BookingConfirmation;
 use Zapol\Booking\Mail\BookingConfirmationOrganizer;
 use Zapol\Booking\Mail\BookingRescheduled;
 use Zapol\Booking\Services\BookingTokenSigner;
-use Zapol\Booking\Services\Google\GoogleCalendarService;
 use Zapol\Booking\Support\BookingMailer;
 use Zapol\Booking\Support\EventTypeResolver;
+use Zapol\Booking\Support\LocationResolver;
 
 class BookingController extends Controller
 {
     public function store(
         Request $request,
-        GoogleCalendarService $calendar,
+        CalendarProvider $calendar,
         BookingTokenSigner $signer,
         BookingMailer $mailer,
     ): JsonResponse {
@@ -57,11 +62,7 @@ class BookingController extends Controller
         $end = $start->addMinutes($duration);
 
         // Race-condition guard: re-query freebusy for just this slot.
-        $busy = $calendar->freeBusy(
-            config('booking.google.busy_calendars', []),
-            $start->subMinutes(1),
-            $end->addMinutes(1),
-        );
+        $busy = $calendar->freeBusy($start->subMinutes(1), $end->addMinutes(1));
         foreach ($busy as $b) {
             if ($start->lessThan($b['end']) && $end->greaterThan($b['start'])) {
                 return response()->json(['error' => 'slot_no_longer_available'], 409);
@@ -73,21 +74,46 @@ class BookingController extends Controller
         $summary = $type['title'] ?? $data['event_type'];
         $description = $this->buildDescription($type['form_fields'] ?? [], $data['fields']);
 
+        // A standalone conference (Zoom) has to exist before the calendar
+        // event, because its join URL becomes the event location.
+        $conference = ConferenceResolver::for($type['location'] ?? null);
+        $meeting = null;
+        if ($conference) {
+            try {
+                $meeting = $conference->create([
+                    'summary'  => $summary,
+                    'start'    => $start,
+                    'end'      => $end,
+                    'timezone' => $organizerTz,
+                    'attendee' => ['email' => $attendeeEmail, 'name' => $attendeeName],
+                ]);
+            } catch (Throwable $e) {
+                report($e);
+                return response()->json(['error' => 'conference_create_failed', 'message' => $e->getMessage()], 502);
+            }
+        }
+
+        $nativeConference = $this->nativeConferenceFor($type, $calendar);
+        $joinUrl = $meeting['join_url'] ?? null;
+
         try {
-            $created = $calendar->createEvent(
-                config('booking.google.calendar_id', 'primary'),
-                $summary,
-                $description,
-                $start,
-                $end,
-                $organizerTz,
-                $attendeeEmail,
-                $attendeeName,
-                $type['additional_attendees'] ?? [],
-                ($type['location'] ?? null) === 'google_meet',
-            );
+            $created = $calendar->createEvent([
+                'summary'              => $summary,
+                'description'          => $description,
+                'start'                => $start,
+                'end'                  => $end,
+                'timezone'             => $organizerTz,
+                'attendee'             => ['email' => $attendeeEmail, 'name' => $attendeeName],
+                'additional_attendees' => $type['additional_attendees'] ?? [],
+                'conference'           => $nativeConference,
+                'location'             => LocationResolver::calendarLocation($type, $joinUrl),
+            ]);
         } catch (Throwable $e) {
             report($e);
+            // Do not leave an orphaned conference behind.
+            if ($conference && $meeting) {
+                $this->quietly(fn () => $conference->delete((string) $meeting['id']));
+            }
             return response()->json(['error' => 'calendar_create_failed', 'message' => $e->getMessage()], 502);
         }
 
@@ -99,9 +125,13 @@ class BookingController extends Controller
         if (!empty($data['lang'])) {
             $tokenBody['lang'] = $data['lang'];
         }
+        if ($meeting) {
+            $tokenBody['cm'] = (string) $meeting['id'];
+        }
         $token = $signer->sign($tokenBody, 86400 * (int) config('booking.token_ttl_days', 60));
 
         $rescheduleUrl = URL::route('booking.reschedule', ['token' => $token]);
+        $location = LocationResolver::describe($type, $joinUrl);
 
         $payload = [
             'token'          => $token,
@@ -109,8 +139,11 @@ class BookingController extends Controller
             'event_type'     => $data['event_type'],
             'start'          => $start->toIso8601String(),
             'end'            => $end->toIso8601String(),
-            'meet_link'      => $created['meet_link'],
-            'html_link'      => $created['html_link'],
+            'meet_link'      => LocationResolver::meetLink($type, $created['meet_link'] ?? null, $joinUrl),
+            'html_link'      => $created['html_link'] ?? null,
+            'meet_provider'  => $location['meet_provider'],
+            'location_label' => $location['location_label'],
+            'location_text'  => $location['location_text'],
             'reschedule_url' => $rescheduleUrl,
             'fields'         => $data['fields'],
             'lang'           => $data['lang'] ?? null,
@@ -131,7 +164,7 @@ class BookingController extends Controller
         return response()->json($payload, 201);
     }
 
-    public function show(string $token, BookingTokenSigner $signer, GoogleCalendarService $calendar): JsonResponse
+    public function show(string $token, BookingTokenSigner $signer, CalendarProvider $calendar): JsonResponse
     {
         try {
             $payload = $signer->verify($token);
@@ -139,18 +172,22 @@ class BookingController extends Controller
             return response()->json(['error' => 'invalid_token', 'message' => $e->getMessage()], 401);
         }
 
-        $event = $calendar->getEvent(config('booking.google.calendar_id', 'primary'), $payload['gid']);
+        $event = $calendar->getEvent($payload['gid']);
         if (!$event) {
             return response()->json(['error' => 'event_not_found'], 404);
         }
 
+        $type = EventTypeResolver::find($payload['et']) ?? [];
+
         return response()->json([
-            'event_type' => $payload['et'],
-            'attendee'   => $payload['em'],
-            'start'      => $event->getStart()->getDateTime() ?? $event->getStart()->getDate(),
-            'end'        => $event->getEnd()->getDateTime() ?? $event->getEnd()->getDate(),
-            'summary'    => $event->getSummary(),
-            'meet_link'  => $event->getHangoutLink(),
+            'event_type'     => $payload['et'],
+            'attendee'       => $payload['em'],
+            'start'          => $event['start'],
+            'end'            => $event['end'],
+            'summary'        => $event['summary'],
+            'meet_link'      => LocationResolver::meetLink($type, $event['meet_link'] ?? null),
+            'meet_provider'  => LocationResolver::meetProvider($type),
+            'location_label' => LocationResolver::label($type),
         ]);
     }
 
@@ -158,7 +195,7 @@ class BookingController extends Controller
         Request $request,
         string $token,
         BookingTokenSigner $signer,
-        GoogleCalendarService $calendar,
+        CalendarProvider $calendar,
         BookingMailer $mailer,
     ): JsonResponse {
         try {
@@ -183,31 +220,29 @@ class BookingController extends Controller
         $duration = (int) ($type['duration_minutes'] ?? 30);
         $end = $start->addMinutes($duration);
 
-        $calendarId = config('booking.google.calendar_id', 'primary');
-
         // Pull the existing event first so we can carry over rich detail
-        // (Meet link, attendee display name) into the reschedule mail without
+        // (join link, attendee display name) into the reschedule mail without
         // a second round-trip after the patch.
-        $existingEvent = $calendar->getEvent($calendarId, $payload['gid']);
-        $meetLink = $existingEvent ? $existingEvent->getHangoutLink() : null;
-        $attendeeName = null;
-        if ($existingEvent) {
-            foreach ((array) $existingEvent->getAttendees() as $a) {
-                if (strcasecmp((string) $a->getEmail(), $payload['em']) === 0) {
-                    $attendeeName = $a->getDisplayName();
-                    break;
-                }
-            }
-        }
+        $existingEvent = $calendar->getEvent($payload['gid']);
+        $meetLink = $existingEvent['meet_link'] ?? null;
+        $attendeeName = $this->attendeeNameFrom($existingEvent, $payload['em']);
 
         try {
-            $calendar->patchEvent($calendarId, $payload['gid'], $start, $end, $tz);
+            $calendar->updateEventTime($payload['gid'], $start, $end, $tz);
         } catch (Throwable $e) {
             report($e);
             return response()->json(['error' => 'calendar_patch_failed', 'message' => $e->getMessage()], 502);
         }
 
+        // Best effort: a conference that refuses to move must not undo a
+        // reschedule the calendar has already accepted.
+        $conference = ConferenceResolver::for($type['location'] ?? null);
+        if ($conference && !empty($payload['cm'])) {
+            $this->quietly(fn () => $conference->reschedule((string) $payload['cm'], $start, $end, $tz));
+        }
+
         $rescheduleUrl = URL::route('booking.reschedule', ['token' => $token]);
+        $location = LocationResolver::describe($type);
 
         $msg = [
             'token'          => $token,
@@ -215,7 +250,10 @@ class BookingController extends Controller
             'event_type'     => $payload['et'],
             'start'          => $start->toIso8601String(),
             'end'            => $end->toIso8601String(),
-            'meet_link'      => $meetLink,
+            'meet_link'      => LocationResolver::meetLink($type, $meetLink),
+            'meet_provider'  => $location['meet_provider'],
+            'location_label' => $location['location_label'],
+            'location_text'  => $location['location_text'],
             'reschedule_url' => $rescheduleUrl,
             'attendee'       => $payload['em'],
             'lang'           => $payload['lang'] ?? null,
@@ -229,13 +267,19 @@ class BookingController extends Controller
             $mailer->send(new BookingRescheduled($msg, $type), config('booking.organizer.email'));
         }
 
+        try {
+            event(new BookingRescheduledEvent($msg, $type));
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         return response()->json(['ok' => true] + $msg);
     }
 
     public function cancel(
         string $token,
         BookingTokenSigner $signer,
-        GoogleCalendarService $calendar,
+        CalendarProvider $calendar,
         BookingMailer $mailer,
     ): JsonResponse {
         try {
@@ -244,42 +288,37 @@ class BookingController extends Controller
             return response()->json(['error' => 'invalid_token'], 401);
         }
 
-        $calendarId = config('booking.google.calendar_id', 'primary');
-
         // Capture the event details BEFORE we delete it so the cancellation
         // mail + CANCEL ICS can carry the original datetime.
-        $existing = $calendar->getEvent($calendarId, $payload['gid']);
-        $start = $end = null;
-        $attendeeName = null;
-        if ($existing) {
-            $s = $existing->getStart();
-            $e = $existing->getEnd();
-            $start = $s ? ($s->getDateTime() ?: $s->getDate()) : null;
-            $end = $e ? ($e->getDateTime() ?: $e->getDate()) : null;
-            foreach ((array) $existing->getAttendees() as $a) {
-                if (strcasecmp((string) $a->getEmail(), $payload['em']) === 0) {
-                    $attendeeName = $a->getDisplayName();
-                    break;
-                }
-            }
-        }
+        $existing = $calendar->getEvent($payload['gid']);
+        $start = $existing['start'] ?? null;
+        $end = $existing['end'] ?? null;
+        $attendeeName = $this->attendeeNameFrom($existing, $payload['em']);
 
         try {
-            $calendar->deleteEvent($calendarId, $payload['gid']);
+            $calendar->deleteEvent($payload['gid']);
         } catch (Throwable $e) {
             report($e);
             return response()->json(['error' => 'calendar_delete_failed'], 502);
         }
 
         $type = EventTypeResolver::find($payload['et']);
+
+        $conference = ConferenceResolver::for($type['location'] ?? null);
+        if ($conference && !empty($payload['cm'])) {
+            $this->quietly(fn () => $conference->delete((string) $payload['cm']));
+        }
+
         $msg = [
-            'event_id'   => $payload['gid'],
-            'event_type' => $payload['et'],
-            'attendee'   => $payload['em'],
-            'start'      => $start,
-            'end'        => $end,
-            'lang'       => $payload['lang'] ?? null,
-            'fields'     => array_filter([
+            'event_id'       => $payload['gid'],
+            'event_type'     => $payload['et'],
+            'attendee'       => $payload['em'],
+            'start'          => $start,
+            'end'            => $end,
+            'meet_provider'  => LocationResolver::meetProvider($type ?? []),
+            'location_label' => LocationResolver::label($type ?? []),
+            'lang'           => $payload['lang'] ?? null,
+            'fields'         => array_filter([
                 'email' => $payload['em'],
                 'name'  => $attendeeName,
             ]),
@@ -289,7 +328,65 @@ class BookingController extends Controller
             $mailer->send(new BookingCancelled($msg, $type ?? []), config('booking.organizer.email'));
         }
 
+        try {
+            event(new BookingCancelledEvent($msg, $type ?? []));
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * A native conference the active driver can actually create. An event type
+     * asking for one the driver does not support is a config mismatch, not a
+     * booking failure: warn and let the meeting happen without a link.
+     *
+     * @param array<string,mixed> $type
+     */
+    private function nativeConferenceFor(array $type, CalendarProvider $calendar): ?string
+    {
+        $wanted = LocationResolver::nativeConference($type);
+        if ($wanted === null) {
+            return null;
+        }
+
+        if (in_array($wanted, $calendar->supportedConferences(), true)) {
+            return $wanted;
+        }
+
+        Log::warning('Booking package: calendar driver cannot create a [' . $wanted . '] conference; creating the event without one.', [
+            'driver_supports' => $calendar->supportedConferences(),
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed>|null $event Normalised getEvent() result.
+     */
+    private function attendeeNameFrom(?array $event, string $email): ?string
+    {
+        foreach ((array) ($event['attendees'] ?? []) as $attendee) {
+            if (strcasecmp((string) ($attendee['email'] ?? ''), $email) === 0) {
+                $name = $attendee['name'] ?? null;
+                return is_string($name) && $name !== '' ? $name : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Run a best-effort side effect: report failures, never surface them.
+     */
+    private function quietly(callable $fn): void
+    {
+        try {
+            $fn();
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     private function validateFormFields(array $defs, array $values): ?string

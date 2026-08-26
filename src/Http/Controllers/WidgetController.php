@@ -13,7 +13,7 @@ class WidgetController extends Controller
     public function script(): Response
     {
         $path = __DIR__ . '/../../../resources/dist/widget.js';
-        $js = is_file($path) ? (string) file_get_contents($path) : '/* booking widget missing — run vendor:publish --tag=booking-assets */';
+        $js = is_file($path) ? (string) file_get_contents($path) : '/* booking widget missing - run vendor:publish --tag=booking-assets */';
 
         return response($js, 200, [
             'Content-Type'  => 'application/javascript; charset=UTF-8',

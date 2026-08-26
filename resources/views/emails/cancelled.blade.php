@@ -19,7 +19,7 @@
                 <strong>{{ __('booking::booking.mail_label_was') }}</strong>
             </td>
             <td style="padding:14px 16px;color:#0f172a;text-decoration:line-through;">
-                {{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} – {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}
+                {{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} - {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}
                 <div style="color:#94a3b8;font-size:12px;margin-top:4px;text-decoration:none;">{{ $tz }}</div>
             </td>
         </tr>

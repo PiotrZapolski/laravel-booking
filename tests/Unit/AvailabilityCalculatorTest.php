@@ -4,8 +4,8 @@ namespace Zapol\Booking\Tests\Unit;
 
 use Carbon\CarbonImmutable;
 use PHPUnit\Framework\TestCase;
+use Zapol\Booking\Contracts\CalendarProvider;
 use Zapol\Booking\Services\AvailabilityCalculator;
-use Zapol\Booking\Services\Google\GoogleCalendarService;
 
 class AvailabilityCalculatorTest extends TestCase
 {
@@ -15,7 +15,6 @@ class AvailabilityCalculatorTest extends TestCase
 
         $calc = new AvailabilityCalculator($busy, [
             'organizer' => ['timezone' => 'Europe/Warsaw'],
-            'google'    => ['busy_calendars' => ['primary']],
             'event_types' => [
                 'consultation' => [
                     'duration_minutes'  => 60,
@@ -37,9 +36,9 @@ class AvailabilityCalculatorTest extends TestCase
 
         $times = array_map(fn ($s) => substr($s['start'], 11, 5), $slots);
 
-        // 9-12 → 09:00, 10:00, 11:00 (each fits 60 min within window)
-        // 13-15 → 13:00, 14:00
-        // 16-18 → 16:00, 17:00
+        // 9-12 -> 09:00, 10:00, 11:00 (each fits 60 min within window)
+        // 13-15 -> 13:00, 14:00
+        // 16-18 -> 16:00, 17:00
         $this->assertSame(['09:00', '10:00', '11:00', '13:00', '14:00', '16:00', '17:00'], $times);
     }
 
@@ -54,7 +53,6 @@ class AvailabilityCalculatorTest extends TestCase
 
         $calc = new AvailabilityCalculator($busy, [
             'organizer' => ['timezone' => 'Europe/Warsaw'],
-            'google'    => ['busy_calendars' => ['primary']],
             'event_types' => [
                 'consultation' => [
                     'duration_minutes'  => 60,
@@ -83,7 +81,6 @@ class AvailabilityCalculatorTest extends TestCase
 
         $calc = new AvailabilityCalculator($busy, [
             'organizer' => ['timezone' => 'Europe/Warsaw'],
-            'google'    => ['busy_calendars' => ['primary']],
             'event_types' => [
                 'consultation' => [
                     'duration_minutes'  => 30,
@@ -105,20 +102,40 @@ class AvailabilityCalculatorTest extends TestCase
         $from = CarbonImmutable::now('Europe/Warsaw');
         $to = $from->addHours(24);
         $slots = $calc->slots('consultation', $from, $to);
-        // 48h notice + only 24h ahead requested → zero slots
+        // 48h notice + only 24h ahead requested -> zero slots
         $this->assertSame([], $slots);
     }
 
-    private function busyService(array $intervals): GoogleCalendarService
+    /**
+     * @param array<int,array{start:CarbonImmutable,end:CarbonImmutable}> $intervals
+     */
+    private function busyService(array $intervals): CalendarProvider
     {
-        return new class($intervals) extends GoogleCalendarService {
-            public function __construct(private array $intervals)
-            {
-                parent::__construct([]);
-            }
-            public function freeBusy(array $calendarIds, CarbonImmutable $from, CarbonImmutable $to): array
+        return new class($intervals) implements CalendarProvider {
+            public function __construct(private array $intervals) {}
+
+            public function freeBusy(CarbonImmutable $from, CarbonImmutable $to): array
             {
                 return $this->intervals;
+            }
+
+            public function createEvent(array $draft): array
+            {
+                return ['id' => 'evt', 'html_link' => null, 'meet_link' => null];
+            }
+
+            public function updateEventTime(string $eventId, CarbonImmutable $start, CarbonImmutable $end, string $timezone): void {}
+
+            public function deleteEvent(string $eventId): void {}
+
+            public function getEvent(string $eventId): ?array
+            {
+                return null;
+            }
+
+            public function supportedConferences(): array
+            {
+                return [];
             }
         };
     }

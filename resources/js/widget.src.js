@@ -1,5 +1,5 @@
 /**
- * Booking Widget — vanilla JS, no build step.
+ * Booking Widget - vanilla JS, no build step.
  *
  * Reads its own <script> tag's data-* attributes:
  *   data-event-type        : event type slug (required)
@@ -307,7 +307,7 @@
         if (!et) return '<div class="bw-head"><h2>…</h2></div>';
         var meta = '<div class="bw-meta">'
             + '<span>' + et.duration + ' min</span>'
-            + (et.location === 'google_meet' ? '<span>· Google Meet</span>' : '')
+            + (et.location_label ? '<span>· ' + esc(et.location_label) + '</span>' : '')
             + (et.timezone ? '<span>· ' + esc(et.timezone) + '</span>' : '')
             + (et.organizer && et.organizer.name ? '<span>· ' + esc(et.organizer.name) + '</span>' : '')
             + '</div>';
@@ -328,9 +328,9 @@
         }
     };
 
-    // Cancel affordance — only meaningful in reschedule mode (the visitor
+    // Cancel affordance - only meaningful in reschedule mode (the visitor
     // arrived from the "Reschedule or cancel" email link with a token). Shown
-    // below the calendar / slots so a booker who wants out — not a new time —
+    // below the calendar / slots so a booker who wants out - not a new time -
     // has a clear exit. Styled muted/danger to set it apart from reschedule.
     Widget.prototype.renderCancelLink = function () {
         if (!this.opts.rescheduleToken) return '';
@@ -457,8 +457,8 @@
             : ('We\'ve sent a confirmation' + (email ? ' to <strong>' + esc(email) + '</strong>' : '') + '. If you don\'t see it, check your spam folder.');
 
         var calendarInvite = pl
-            ? 'Otrzymasz też zaproszenie z Google Calendar — zaakceptuj je, aby dodać spotkanie do swojego kalendarza.'
-            : 'You\'ll also receive a separate Google Calendar invite — accept it to add this meeting to your calendar.';
+            ? 'Otrzymasz też zaproszenie z kalendarza organizatora - zaakceptuj je, aby dodać spotkanie do swojego kalendarza.'
+            : 'You\'ll also receive a calendar invite from the organizer - accept it to add this meeting to your calendar.';
 
         return ''
             + '<div class="bw-success">'
@@ -468,11 +468,11 @@
 
             + '<div class="bw-success-card">'
             + '<div class="bw-meta-row"><strong>' + (pl ? 'Termin' : 'When') + '</strong><span>' + esc(fmt) + '</span></div>'
-            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>Google Meet</strong><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" style="color:var(--bw-accent);">' + (pl ? 'Link do spotkania' : 'Meeting link') + ' →</a></div>' : '')
+            + (b && b.meet_link ? '<div class="bw-meta-row"><strong>' + esc(b.location_label || 'Meeting') + '</strong><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" style="color:var(--bw-accent);">' + (pl ? 'Link do spotkania' : 'Meeting link') + ' →</a></div>' : '')
             + '</div>'
 
             + (b && b.meet_link
-                ? '<p style="margin-top:18px;"><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" class="bw-btn" style="display:inline-block;text-decoration:none;">' + (pl ? 'Dołącz do spotkania' : 'Join Google Meet') + '</a></p>'
+                ? '<p style="margin-top:18px;"><a href="' + esc(b.meet_link) + '" target="_blank" rel="noopener" class="bw-btn" style="display:inline-block;text-decoration:none;">' + (pl ? 'Dołącz do spotkania' : 'Join meeting') + '</a></p>'
                 : '')
 
             + '<p style="margin:18px auto 0;max-width:520px;color:var(--bw-muted);font-size:13px;line-height:1.55;">' + calendarInvite + '</p>'
@@ -589,7 +589,7 @@
 
               // Notify the host page that a booking just landed so it can
               // fire its own analytics conversion (Google Ads, Meta Pixel,
-              // etc.). The widget intentionally does not own these — every
+              // etc.). The widget intentionally does not own these - every
               // host has its own tag IDs.
               try {
                   var ev = new CustomEvent('booking:confirmed', {
@@ -603,7 +603,7 @@
                   });
                   window.dispatchEvent(ev);
               } catch (err) {
-                  // CustomEvent unsupported (very old IE) — quietly skip.
+                  // CustomEvent unsupported (very old IE) - quietly skip.
               }
           })
           .catch(function (e) {

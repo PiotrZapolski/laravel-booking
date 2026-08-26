@@ -8,11 +8,11 @@ use Carbon\CarbonImmutable;
  * Builds an RFC-5545 iCalendar attachment for a booking lifecycle event.
  *
  * Three METHODs cover the trio of mailables:
- *   - REQUEST  — initial confirmation; client adds the event to the calendar
- *   - REQUEST  — reschedule; same UID + same METHOD, client treats it as an update
- *   - CANCEL   — cancellation; same UID + STATUS:CANCELLED, client removes event
+ *   - REQUEST  initial confirmation; client adds the event to the calendar
+ *   - REQUEST  reschedule; same UID + same METHOD, client treats it as an update
+ *   - CANCEL   cancellation; same UID + STATUS:CANCELLED, client removes event
  *
- * UID is stable across the trio (derived from the Google Calendar event id)
+ * UID is stable across the trio (derived from the calendar event id)
  * so attendee calendar apps reliably correlate the messages.
  */
 class IcsBuilder
@@ -22,7 +22,8 @@ class IcsBuilder
 
     /**
      * @param array<string,mixed> $payload Must contain start, end; may contain
-     *     event_id, meet_link, reschedule_url, fields[email|name].
+     *     event_id, meet_link, location_label, location_text, reschedule_url,
+     *     fields[email|name].
      * @param array<string,mixed> $eventType
      * @param string $organizerEmail
      * @param string $method One of the METHOD_* constants.
@@ -40,7 +41,7 @@ class IcsBuilder
         $uid = ($payload['event_id'] ?? bin2hex(random_bytes(8))) . '@booking';
         $title = self::escape($eventType['title'] ?? 'Booking');
         if ($method === self::METHOD_CANCEL) {
-            $title = self::escape(($eventType['title'] ?? 'Booking') . ' — cancelled');
+            $title = self::escape(($eventType['title'] ?? 'Booking') . ' - cancelled');
         }
         $descriptionLines = [];
         if ($method === self::METHOD_CANCEL) {
@@ -49,14 +50,14 @@ class IcsBuilder
             $descriptionLines[] = 'Booking confirmation';
             $descriptionLines[] = '';
             if (!empty($payload['meet_link'])) {
-                $descriptionLines[] = 'Google Meet: ' . $payload['meet_link'];
+                $descriptionLines[] = ($payload['location_label'] ?? 'Meeting link') . ': ' . $payload['meet_link'];
             }
             if (!empty($payload['reschedule_url'])) {
                 $descriptionLines[] = 'Reschedule: ' . $payload['reschedule_url'];
             }
         }
         $description = self::escape(implode("\n", $descriptionLines));
-        $location = self::escape($payload['meet_link'] ?? '');
+        $location = self::escape((string) ($payload['meet_link'] ?? $payload['location_text'] ?? ''));
 
         $attendeeEmail = $payload['fields']['email'] ?? ($payload['attendee'] ?? null);
         $attendeeName = $payload['fields']['name'] ?? null;

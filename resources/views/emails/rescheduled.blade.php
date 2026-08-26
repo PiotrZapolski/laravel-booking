@@ -18,14 +18,14 @@
             <strong>{{ __('booking::booking.mail_label_new_time') }}</strong>
         </td>
         <td style="padding:14px 16px;">
-            {{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} – {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}
+            {{ $start->setTimezone($tz)->isoFormat('dddd, D MMMM YYYY · HH:mm') }} - {{ $end->setTimezone($tz)->isoFormat('HH:mm') }}
             <div style="color:#94a3b8;font-size:12px;margin-top:4px;">{{ $tz }}</div>
         </td>
     </tr>
     @if (!empty($payload['meet_link']))
         <tr>
             <td style="padding:14px 16px;background:#f8fafc;color:#475569;border-top:1px solid #e5e7eb;">
-                <strong>Google Meet</strong>
+                <strong>{{ $payload['location_label'] ?? 'Meeting link' }}</strong>
             </td>
             <td style="padding:14px 16px;border-top:1px solid #e5e7eb;word-break:break-all;">
                 <a href="{{ $payload['meet_link'] }}" style="color:{{ $accent }};">{{ $payload['meet_link'] }}</a>

@@ -14,21 +14,29 @@ use Google\Service\Calendar\FreeBusyRequest;
 use Google\Service\Calendar\FreeBusyRequestItem;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Zapol\Booking\Contracts\CalendarProvider;
 
-class GoogleCalendarService
+/**
+ * Google Calendar driver.
+ *
+ * The calendar it writes to (`booking.google.calendar_id`) and the calendars it
+ * treats as busy (`booking.google.busy_calendars`) come from its own config, so
+ * callers only ever deal with the CalendarProvider interface.
+ */
+class GoogleCalendarService implements CalendarProvider
 {
     private ?CalendarService $service = null;
 
     public function __construct(private array $config) {}
 
     /**
-     * Returns busy intervals across all configured calendars within the range.
+     * Busy intervals across every configured calendar within the range.
      *
-     * @param array<int,string> $calendarIds
      * @return array<int,array{start:CarbonImmutable,end:CarbonImmutable}>
      */
-    public function freeBusy(array $calendarIds, CarbonImmutable $from, CarbonImmutable $to): array
+    public function freeBusy(CarbonImmutable $from, CarbonImmutable $to): array
     {
+        $calendarIds = $this->busyCalendarIds();
         if (empty($calendarIds)) {
             return [];
         }
@@ -58,43 +66,46 @@ class GoogleCalendarService
     }
 
     /**
-     * @param array<int,string> $attendeeEmails Extra invitees beyond the booker.
-     * @return array{id:string,html_link:string,meet_link:?string}
+     * @param array<string,mixed> $draft
+     * @return array{id:string,html_link:?string,meet_link:?string}
      */
-    public function createEvent(
-        string $calendarId,
-        string $summary,
-        string $description,
-        CarbonImmutable $start,
-        CarbonImmutable $end,
-        string $organizerTz,
-        string $attendeeEmail,
-        string $attendeeName,
-        array $attendeeEmails = [],
-        bool $withMeet = true,
-    ): array {
+    public function createEvent(array $draft): array
+    {
+        $tz = (string) ($draft['timezone'] ?? 'UTC');
+        $start = $draft['start'];
+        $end = $draft['end'];
+        $attendeeEmail = (string) ($draft['attendee']['email'] ?? '');
+        $attendeeName = (string) ($draft['attendee']['name'] ?? '');
+
         $event = new Event();
-        $event->setSummary($summary);
-        $event->setDescription($description);
+        $event->setSummary((string) ($draft['summary'] ?? ''));
+        $event->setDescription((string) ($draft['description'] ?? ''));
 
         $startDt = new EventDateTime();
-        $startDt->setDateTime($start->setTimezone($organizerTz)->toRfc3339String());
-        $startDt->setTimeZone($organizerTz);
+        $startDt->setDateTime($start->setTimezone($tz)->toRfc3339String());
+        $startDt->setTimeZone($tz);
         $event->setStart($startDt);
 
         $endDt = new EventDateTime();
-        $endDt->setDateTime($end->setTimezone($organizerTz)->toRfc3339String());
-        $endDt->setTimeZone($organizerTz);
+        $endDt->setDateTime($end->setTimezone($tz)->toRfc3339String());
+        $endDt->setTimeZone($tz);
         $event->setEnd($endDt);
 
-        $attendees = [];
-        $primary = new EventAttendee();
-        $primary->setEmail($attendeeEmail);
-        if ($attendeeName !== '') {
-            $primary->setDisplayName($attendeeName);
+        if (!empty($draft['location'])) {
+            $event->setLocation((string) $draft['location']);
         }
-        $attendees[] = $primary;
-        foreach ($attendeeEmails as $email) {
+
+        $attendees = [];
+        if ($attendeeEmail !== '') {
+            $primary = new EventAttendee();
+            $primary->setEmail($attendeeEmail);
+            if ($attendeeName !== '') {
+                $primary->setDisplayName($attendeeName);
+            }
+            $attendees[] = $primary;
+        }
+        foreach ((array) ($draft['additional_attendees'] ?? []) as $email) {
+            $email = (string) $email;
             if ($email === '' || strcasecmp($email, $attendeeEmail) === 0) {
                 continue;
             }
@@ -105,7 +116,7 @@ class GoogleCalendarService
         $event->setAttendees($attendees);
 
         $params = ['sendUpdates' => 'all'];
-        if ($withMeet) {
+        if (($draft['conference'] ?? null) === 'google_meet') {
             $conf = new ConferenceData();
             $request = new CreateConferenceRequest();
             $request->setRequestId((string) Str::uuid());
@@ -117,7 +128,7 @@ class GoogleCalendarService
             $params['conferenceDataVersion'] = 1;
         }
 
-        $created = $this->service()->events->insert($calendarId, $event, $params);
+        $created = $this->service()->events->insert($this->calendarId(), $event, $params);
 
         return [
             'id'        => $created->getId(),
@@ -126,40 +137,84 @@ class GoogleCalendarService
         ];
     }
 
-    public function patchEvent(
-        string $calendarId,
-        string $eventId,
-        CarbonImmutable $start,
-        CarbonImmutable $end,
-        string $organizerTz,
-    ): void {
+    public function updateEventTime(string $eventId, CarbonImmutable $start, CarbonImmutable $end, string $timezone): void
+    {
         $patch = new Event();
 
         $startDt = new EventDateTime();
-        $startDt->setDateTime($start->setTimezone($organizerTz)->toRfc3339String());
-        $startDt->setTimeZone($organizerTz);
+        $startDt->setDateTime($start->setTimezone($timezone)->toRfc3339String());
+        $startDt->setTimeZone($timezone);
         $patch->setStart($startDt);
 
         $endDt = new EventDateTime();
-        $endDt->setDateTime($end->setTimezone($organizerTz)->toRfc3339String());
-        $endDt->setTimeZone($organizerTz);
+        $endDt->setDateTime($end->setTimezone($timezone)->toRfc3339String());
+        $endDt->setTimeZone($timezone);
         $patch->setEnd($endDt);
 
-        $this->service()->events->patch($calendarId, $eventId, $patch, ['sendUpdates' => 'all']);
+        $this->service()->events->patch($this->calendarId(), $eventId, $patch, ['sendUpdates' => 'all']);
     }
 
-    public function deleteEvent(string $calendarId, string $eventId): void
+    public function deleteEvent(string $eventId): void
     {
-        $this->service()->events->delete($calendarId, $eventId, ['sendUpdates' => 'all']);
+        $this->service()->events->delete($this->calendarId(), $eventId, ['sendUpdates' => 'all']);
     }
 
-    public function getEvent(string $calendarId, string $eventId): ?Event
+    /**
+     * `meet_link` falls back to the event location when it is a URL, so that
+     * bookings whose conference lives outside Google (Zoom, a custom link)
+     * still expose a join link on reschedule and cancel.
+     *
+     * @return null|array{id:string,summary:?string,start:?string,end:?string,meet_link:?string,attendees:array<int,array{email:string,name:?string}>}
+     */
+    public function getEvent(string $eventId): ?array
     {
         try {
-            return $this->service()->events->get($calendarId, $eventId);
+            $event = $this->service()->events->get($this->calendarId(), $eventId);
         } catch (\Throwable $e) {
             return null;
         }
+
+        if (!$event) {
+            return null;
+        }
+
+        $start = $event->getStart();
+        $end = $event->getEnd();
+
+        $attendees = [];
+        foreach ((array) $event->getAttendees() as $attendee) {
+            $email = (string) $attendee->getEmail();
+            if ($email === '') {
+                continue;
+            }
+            $attendees[] = [
+                'email' => $email,
+                'name'  => $attendee->getDisplayName() ?: null,
+            ];
+        }
+
+        $location = $event->getLocation();
+        $meetLink = $event->getHangoutLink();
+        if (!$meetLink && is_string($location) && preg_match('#^https?://#i', $location)) {
+            $meetLink = $location;
+        }
+
+        return [
+            'id'        => (string) $event->getId(),
+            'summary'   => $event->getSummary(),
+            'start'     => $start ? ($start->getDateTime() ?: $start->getDate()) : null,
+            'end'       => $end ? ($end->getDateTime() ?: $end->getDate()) : null,
+            'meet_link' => $meetLink ?: null,
+            'attendees' => $attendees,
+        ];
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    public function supportedConferences(): array
+    {
+        return ['google_meet'];
     }
 
     public function client(): GoogleClient
@@ -177,6 +232,28 @@ class GoogleCalendarService
             CalendarService::CALENDAR_READONLY,
         ]);
         return $client;
+    }
+
+    private function calendarId(): string
+    {
+        $id = $this->config['calendar_id'] ?? null;
+
+        return is_string($id) && $id !== '' ? $id : 'primary';
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function busyCalendarIds(): array
+    {
+        $ids = $this->config['busy_calendars'] ?? null;
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+
+        $ids = array_values(array_filter(array_map('strval', $ids), fn ($id) => $id !== ''));
+
+        return $ids ?: [$this->calendarId()];
     }
 
     private function service(): CalendarService

@@ -29,7 +29,7 @@ class MailLocale
             try {
                 App::setLocale($lang);
             } catch (\Throwable $e) {
-                // Unknown locale — leave the previously-active one alone.
+                // Unknown locale - leave the previously-active one alone.
             }
         }
     }

@@ -13,7 +13,7 @@ use Zapol\Booking\Services\Google\GoogleCalendarService;
 class OAuthController extends Controller
 {
     /**
-     * Connection landing page — shows current status and a "Connect Google" button.
+     * Connection landing page - shows current status and a "Connect Google" button.
      * Protected by Laravel signed URLs (artisan command generates a 1-hour link).
      */
     public function connect(Request $request, GoogleCalendarService $calendar): Response
@@ -37,7 +37,7 @@ class OAuthController extends Controller
         $callbackUrl = URL::route('booking.google.callback');
         $startUrl = URL::route('booking.google.start');
 
-        return $this->renderPage('Booking — Google Calendar connection', $this->statusBody(
+        return $this->renderPage('Booking - Google Calendar connection', $this->statusBody(
             missingClient: $missingClient,
             hasRefreshToken: $hasRefreshToken,
             connectedEmail: $connectedEmail,
