@@ -38,6 +38,7 @@ class BookingController extends Controller
             'fields'     => ['required', 'array'],
             'timezone'   => ['nullable', 'string'],
             'lang'       => ['nullable', 'string', 'max:8'],
+            'visitor_id' => ['nullable', 'string', 'max:64'],
             // Honeypot: must be empty
             'hp_company' => ['nullable', 'string', 'max:0'],
         ]);
@@ -147,6 +148,7 @@ class BookingController extends Controller
             'reschedule_url' => $rescheduleUrl,
             'fields'         => $data['fields'],
             'lang'           => $data['lang'] ?? null,
+            'visitor_id'     => $data['visitor_id'] ?? null,
         ];
 
         $mailer->send(new BookingConfirmation($payload, $type), $attendeeEmail);

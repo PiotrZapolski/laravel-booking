@@ -319,6 +319,7 @@ Attributes on the script tag:
 | `data-mount` | CSS selector of the mount element (defaults to `#booking-widget`) |
 | `data-api` | Override the API base URL (defaults to the script's own origin + `/booking/api`) |
 | `data-first-channel`, `data-last-source` | Attribution strings passed through to the `booking:confirmed` event |
+| `data-visitor-id` | Opaque visitor id (e.g. your campaign cookie id); echoed back as `visitor_id` in the booking payload and in the `booking:confirmed` event |
 
 Pre-filled fields render **read-only with a small "from previous step" hint**, so the user can verify them but not retype them. This is what makes the widget slot into multi-step funnels: a qualification form on step 1, the calendar on step 2, no data re-entered.
 
