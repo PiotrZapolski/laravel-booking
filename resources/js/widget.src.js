@@ -11,6 +11,7 @@
  *   data-reschedule-token  : reschedule mode
  *   data-mount             : CSS selector to mount in (default: #booking-widget)
  *   data-api               : override API base (default: derived from script src)
+ *   data-visitor-id        : opaque visitor id echoed back in the booking payload (attribution)
  */
 (function () {
     'use strict';
@@ -27,6 +28,7 @@
     // CustomEvent carries them through to whichever pixel / ads tag fires.
     var firstChannel = ds.firstChannel || null;
     var lastSource = ds.lastSource || null;
+    var visitorId = ds.visitorId || null;
     var prefill = collectPrefill(ds);
 
     if (!slug) {
@@ -569,6 +571,7 @@
                 hp_company: honeypot,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 lang: t.opts.lang,
+                visitor_id: t.opts.visitorId || null,
             }),
         }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; }); })
           .then(function (resp) {
@@ -599,6 +602,7 @@
                           payload:     resp.data,
                           firstChannel: t.opts.firstChannel || null,
                           lastSource:   t.opts.lastSource || null,
+                          visitorId:    t.opts.visitorId || null,
                       },
                   });
                   window.dispatchEvent(ev);
@@ -746,6 +750,7 @@
             rescheduleToken: rescheduleToken,
             firstChannel: firstChannel,
             lastSource: lastSource,
+            visitorId: visitorId,
         });
         app.boot();
     });
