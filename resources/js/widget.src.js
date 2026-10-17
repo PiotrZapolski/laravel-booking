@@ -202,7 +202,7 @@
                 return self.findFirstNonEmptyMonth();
             }
         }).catch(function (e) {
-            self.state.error = (e && e.message) || 'Failed to load.';
+            self.state.error = (e && e.message) || (self.opts.lang === 'pl' ? 'Nie udało się wczytać danych. Spróbuj ponownie za chwilę.' : 'Failed to load.');
             self.render();
         });
     };
@@ -274,7 +274,7 @@
         return fetch(this.opts.api + '/event-types/' + encodeURIComponent(this.opts.slug) + '/slots?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
             credentials: 'same-origin',
         }).then(function (r) {
-            if (!r.ok) throw new Error('Failed to load slots.');
+            if (!r.ok) throw new Error('slots');
             return r.json();
         }).then(function (data) {
             self.state.slots = data.slots || [];
@@ -290,7 +290,9 @@
             self.render();
         }).catch(function (e) {
             self.state.loading = false;
-            self.state.error = e.message;
+            self.state.error = self.opts.lang === 'pl'
+                ? 'Nie udało się wczytać terminów. Spróbuj ponownie za chwilę.'
+                : 'Failed to load slots.';
             self.render();
         });
     };
@@ -577,7 +579,7 @@
           .then(function (resp) {
               t.state.loading = false;
               if (!resp.ok) {
-                  t.state.error = (resp.data && resp.data.message) || (resp.data && resp.data.error) || 'Booking failed.';
+                  t.state.error = (resp.data && resp.data.message) || (resp.data && resp.data.error) || (t.opts.lang === 'pl' ? 'Rezerwacja nie powiodła się.' : 'Booking failed.');
                   if (resp.status === 409) {
                       t.state.view = 'calendar';
                       t.loadMonth(t.state.month);
@@ -612,7 +614,7 @@
           })
           .catch(function (e) {
               t.state.loading = false;
-              t.state.error = e.message || 'Network error.';
+              t.state.error = e.message || (t.opts.lang === 'pl' ? 'Błąd sieci.' : 'Network error.');
               t.render();
           });
     };
@@ -630,7 +632,7 @@
           .then(function (resp) {
               t.state.loading = false;
               if (!resp.ok) {
-                  t.state.error = (resp.data && resp.data.message) || 'Reschedule failed.';
+                  t.state.error = (resp.data && resp.data.message) || (t.opts.lang === 'pl' ? 'Nie udało się zmienić terminu.' : 'Reschedule failed.');
                   t.render();
                   return;
               }
