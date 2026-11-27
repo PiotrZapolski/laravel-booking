@@ -1,0 +1,38 @@
+name: Tests
+
+# Fast lane: one PHP and Laravel version, no matrix.
+# The push run on master keeps the README badge current (no merge queue here).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**.md', 'docs/**']
+  push:
+    branches: [master]
+    paths-ignore: ['**.md', 'docs/**']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-php8.3-${{ hashFiles('composer.json') }}
+          restore-keys: composer-php8.3-
+      # testbench 10 pins the run to Laravel 12
+      - run: composer update --with="orchestra/testbench:^10.0" --prefer-dist --no-interaction --no-progress
+      - run: vendor/bin/phpunit

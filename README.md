@@ -1,6 +1,24 @@
 # laravel-booking
 
-**Self-hosted booking widget for Laravel.** A drop-in Calendly / Zencal replacement when all you need is scheduling and you want to own the data, the look, and the form.
+[![Packagist version](https://img.shields.io/packagist/v/zapol/laravel-booking)](https://packagist.org/packages/zapol/laravel-booking)
+[![Packagist downloads](https://img.shields.io/packagist/dt/zapol/laravel-booking)](https://packagist.org/packages/zapol/laravel-booking)
+[![Tests](https://github.com/PiotrZapolski/laravel-booking/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/PiotrZapolski/laravel-booking/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![PHP 8.0+](https://img.shields.io/badge/php-%3E%3D8.0-777bb4)](composer.json)
+
+laravel-booking is a self-hosted booking widget package for Laravel (PHP 8.0+, Laravel 9-13) that replaces Calendly or Zencal. It computes availability from weekly windows and the busy time on your Google Calendar, Microsoft 365 or CalDAV calendar, and embeds on any page with one script tag. MIT licensed, no database table required.
+
+```bash
+composer require zapol/laravel-booking
+php artisan vendor:publish --tag=booking-config
+```
+
+```html
+<div id="booking-widget"></div>
+<script src="https://your-app.tld/booking/widget.js" data-event-type="consultation" defer></script>
+```
+
+Add your calendar credentials before the first booking, see [Quick start](#quick-start).
 
 - One `<script>` tag embeds the widget on any page (Blade, Twig / October CMS, static HTML, anything)
 - Availability is computed from **weekly windows in config** minus **busy time on your real calendar**
@@ -25,6 +43,7 @@
 
 ## Contents
 
+- [How does laravel-booking compare to Calendly, Cal.com and Easy!Appointments?](#how-does-laravel-booking-compare-to-calendly-calcom-and-easyappointments)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick start](#quick-start)
@@ -46,9 +65,26 @@
 - [Optional bookings table](#optional-bookings-table)
 - [Configuration reference](#configuration-reference)
 - [Extending: writing your own provider](#extending-writing-your-own-provider)
+- [FAQ](#faq)
 - [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
+
+## How does laravel-booking compare to Calendly, Cal.com and Easy!Appointments?
+
+laravel-booking is a package you install inside your own Laravel app, while the other three are products of their own. For self-hosting, the Cal.com column describes [Cal.diy](https://github.com/calcom/cal.diy), the community edition published in the former `calcom/cal.com` repository.
+
+| | laravel-booking | Calendly | Cal.com (self-hosted: Cal.diy) | Easy!Appointments |
+|---|---|---|---|---|
+| Type | Laravel package | Hosted SaaS | Standalone Node.js app | Standalone PHP app |
+| Where the data lives | Bookings are events in your connected calendar; the package needs no table of its own | On Calendly's service | In the database of your Cal.diy server | In the database of your Easy!Appointments server |
+| Separate app and database to run | No: it runs inside your Laravel app | Nothing to host | Yes: own app and PostgreSQL | Yes: own app and MySQL |
+| Inside an existing Laravel app | Installed with Composer; routes, config and events are part of your app | External service | Separate application | Separate application |
+| License | MIT | Proprietary | MIT | GPL-3.0 |
+
+Calendars supported by laravel-booking: Google Calendar, Microsoft 365 / Outlook and CalDAV (iCloud, Nextcloud, Fastmail, Radicale and others). One driver is active per install.
+
+**When to choose something else:** laravel-booking has no team scheduling, round-robin, payments or admin panel. If you need those, choose a full scheduling platform such as the hosted [Cal.com](https://cal.com). Cal.diy is not the same product: its README says Teams and other enterprise features were removed, and recommends it for personal, non-production use.
 
 ## Requirements
 
@@ -507,6 +543,32 @@ $this->app->singleton(\Zapol\Booking\Contracts\CalendarProvider::class, MyCalend
 ```
 
 Pull requests adding providers are welcome; the Microsoft and CalDAV drivers are small, self-contained examples built on Laravel's HTTP client.
+
+## FAQ
+
+### Do I need a database?
+
+No, laravel-booking does not need a database table to take, reschedule or cancel bookings. Each booking is an event in your calendar, and the reschedule link carries an HMAC-signed token keyed by your `APP_KEY`. To keep your own record of bookings, listen to the [events](#events-for-host-applications).
+
+### Does it work with October CMS?
+
+Yes, laravel-booking works inside October CMS, which ships the Laravel container. Booking emails are rendered with Blade directly, so October's Twig view layer does not process them, and the widget goes into a page with the [Twig snippet](#twig--october-cms).
+
+### Which calendars and video tools are supported?
+
+laravel-booking supports Google Calendar, Microsoft 365 / Outlook and CalDAV servers, with Google Meet, Microsoft Teams or Zoom for video. Google Meet requires the `google` driver, Teams requires the `microsoft` driver, and Zoom works with any of the three. You can also set a [custom location](#custom-location), such as an address, a phone call or a fixed meeting link.
+
+### How do guests reschedule or cancel?
+
+Guests of a laravel-booking site use the "Reschedule or cancel" link in their confirmation email, with no account or password. It opens `/booking/reschedule/{token}`, where they can pick a new time or cancel the meeting. The token is valid for `booking.token_ttl_days` days from the moment of booking (60 by default).
+
+### Can I embed it on a non-Laravel page?
+
+Yes, the laravel-booking widget can be embedded on a static or non-Laravel page, while the package itself still runs in a Laravel app that serves the script and the API. If the page is on another origin (a different domain, subdomain or port), allow the API in your Laravel app's CORS settings: add `booking/api/*` to `paths` in `config/cors.php` and check that `allowed_origins` includes the page's origin. Laravel's default `paths` do not cover the booking API. On Laravel 11 or newer, create the file with `php artisan config:publish cors`, and keep the default entries. Alternatively, put [`/booking/embed`](#standalone-page--iframe) in an iframe.
+
+### Is it free?
+
+Yes, laravel-booking is free and open source under the [MIT license](LICENSE). The calendar, video and Slack services you connect to it have their own accounts and terms.
 
 ## Testing
 

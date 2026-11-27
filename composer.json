@@ -1,9 +1,14 @@
 {
     "name": "zapol/laravel-booking",
-    "description": "Self-hosted booking widget for Laravel apps. Replaces Zencal/Calendly with a config-driven, Google Calendar-synced scheduling page that can be embedded with a single script tag.",
+    "description": "laravel-booking is a self-hosted booking widget package for Laravel (PHP 8.0+, Laravel 9-13) that replaces Calendly or Zencal, using busy time from Google Calendar, Microsoft 365 or CalDAV.",
     "type": "library",
     "license": "MIT",
-    "keywords": ["laravel", "booking", "scheduling", "google-calendar", "calendly", "zencal"],
+    "keywords": ["laravel", "booking", "scheduling", "google-calendar", "calendly", "zencal", "calendly-alternative", "self-hosted", "appointment", "booking-widget", "microsoft-365", "caldav"],
+    "homepage": "https://piotrzapolski.com/laravel-booking/",
+    "support": {
+        "issues": "https://github.com/PiotrZapolski/laravel-booking/issues",
+        "source": "https://github.com/PiotrZapolski/laravel-booking"
+    },
     "authors": [
         {
             "name": "Piotr Zapolski",
