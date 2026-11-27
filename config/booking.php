@@ -137,9 +137,16 @@ return [
         'slack_webhook_url' => env('BOOKING_SLACK_WEBHOOK_URL'),
     ],
 
-    'route_prefix'     => 'booking',
+    'route_prefix'   => 'booking',
+    'token_ttl_days' => 60,
+
+    // Optional audit log. When true, every booking is also written to the
+    // `booking_bookings` table (publish it with --tag=booking-migrations and
+    // migrate): a row on create, new times on reschedule, status `cancelled`
+    // on cancel. The calendar stays the source of truth, and a failed write
+    // is reported without affecting the booking. When false (the default)
+    // the package never touches the database.
     'persist_bookings' => false,
-    'token_ttl_days'   => 60,
 
     'theme' => [
         'primary'   => '#47b2e4',

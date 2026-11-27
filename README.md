@@ -484,22 +484,38 @@ All routes live under `booking.route_prefix` (default `booking`). They are state
 
 Response `201` includes `token`, `event_id`, `start`, `end`, `meet_link`, `meet_provider`, `location_label`, `html_link`, `reschedule_url`. Errors: `409 slot_no_longer_available`, `422 invalid_fields`, `502 calendar_create_failed`.
 
-Tokens are HMAC-SHA256 over a JSON payload keyed by `APP_KEY`, valid for `booking.token_ttl_days` (default 60). The calendar is the source of truth; the package stores nothing.
+Tokens are HMAC-SHA256 over a JSON payload keyed by `APP_KEY`, valid for `booking.token_ttl_days` (default 60). The calendar is the source of truth; by default the package stores nothing (see [Optional bookings table](#optional-bookings-table)).
 
 ## Optional bookings table
 
-If you want an audit log or analytics:
-
-```php
-'persist_bookings' => true,
-```
+The package needs no table. If you also want an audit log or analytics in your own database, switch on the optional one. Publish the config and the migration, then migrate:
 
 ```bash
+php artisan vendor:publish --tag=booking-config
 php artisan vendor:publish --tag=booking-migrations
 php artisan migrate
 ```
 
-Purely additive; everything works without it.
+```php
+// config/booking.php
+'persist_bookings' => true,
+```
+
+With the option on, the package mirrors the booking lifecycle into `booking_bookings` on your default database connection:
+
+| When | What happens to the row |
+|---|---|
+| Booking created | A row is inserted: `event_type`, `attendee_email`, `attendee_name`, `google_event_id`, `starts_at`, `ends_at`, `fields` (JSON), `meet_link`, `status = confirmed` |
+| Booking rescheduled | `starts_at` and `ends_at` are updated. A booking made before the option was on gets its row here |
+| Booking cancelled | `status` becomes `cancelled`; the row is kept |
+
+Notes:
+
+- `google_event_id` holds the calendar event id of whichever driver is active, not only Google.
+- `starts_at` and `ends_at` are stored in your `app.timezone`, the way Eloquent stores datetimes.
+- The calendar stays the source of truth. The table is a log: the package writes to it and never reads from it.
+- A failed write (no connection, table not migrated) is reported to your log and never blocks the booking or its emails.
+- With `persist_bookings` set to `false` (the default) the package runs no database queries at all.
 
 ## Configuration reference
 
@@ -548,7 +564,7 @@ Pull requests adding providers are welcome; the Microsoft and CalDAV drivers are
 
 ### Do I need a database?
 
-No, laravel-booking does not need a database table to take, reschedule or cancel bookings. Each booking is an event in your calendar, and the reschedule link carries an HMAC-signed token keyed by your `APP_KEY`. To keep your own record of bookings, listen to the [events](#events-for-host-applications).
+No, laravel-booking does not need a database table to take, reschedule or cancel bookings. Each booking is an event in your calendar, and the reschedule link carries an HMAC-signed token keyed by your `APP_KEY`. To keep your own record of bookings, either set `persist_bookings` to `true` to log them in the [optional bookings table](#optional-bookings-table), or listen to the [events](#events-for-host-applications). Both are opt-in: by default the package runs no database queries.
 
 ### Does it work with October CMS?
 
@@ -577,7 +593,7 @@ composer install
 vendor/bin/phpunit
 ```
 
-Unit tests cover the availability maths (multi-window days, busy overlap, buffers, notice), the token signer (round-trip, tamper detection, expiry), the ICS parser, and the Microsoft, CalDAV, and Zoom drivers against faked HTTP responses. No network or credentials needed.
+Unit tests cover the availability maths (multi-window days, busy overlap, buffers, notice), the token signer (round-trip, tamper detection, expiry), the ICS parser, and the Microsoft, CalDAV, and Zoom drivers against faked HTTP responses. Feature tests run the booking HTTP flow against an in-memory calendar with `persist_bookings` on and off. No network or credentials needed.
 
 ## Contributing
 

@@ -15,6 +15,7 @@ use Zapol\Booking\Events\BookingCancelled;
 use Zapol\Booking\Events\BookingCreated;
 use Zapol\Booking\Events\BookingRescheduled;
 use Zapol\Booking\Listeners\NotifySlack;
+use Zapol\Booking\Listeners\PersistBooking;
 use Zapol\Booking\Services\AvailabilityCalculator;
 use Zapol\Booking\Services\BookingTokenSigner;
 use Zapol\Booking\Services\Google\GoogleCalendarService;
@@ -79,6 +80,15 @@ class BookingServiceProvider extends ServiceProvider
                 BookingRescheduled::class,
                 BookingCancelled::class,
             ], NotifySlack::class);
+        }
+
+        // Opt-in audit log. Off by default: no listener, no database access.
+        if ($this->app['config']->get('booking.persist_bookings')) {
+            Event::listen([
+                BookingCreated::class,
+                BookingRescheduled::class,
+                BookingCancelled::class,
+            ], PersistBooking::class);
         }
 
         if ($this->app->runningInConsole()) {
